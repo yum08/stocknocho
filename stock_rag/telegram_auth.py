@@ -82,7 +82,6 @@ async def main():
 
         if choice == '2':
             # QR Code auth
-            from telethon.tl.functions.auth import ExportLoginTokenRequest
             print()
             print("QR Code authentication is interactive.")
             print("Opening Telethon QR auth flow...")

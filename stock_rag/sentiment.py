@@ -9,7 +9,6 @@ Performs:
 4. Aggregated signal generation per stock per time window
 """
 
-import re
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional, Tuple
 from collections import defaultdict
@@ -89,8 +88,7 @@ class SentimentAnalyzer:
             }
 
         text_lower = text.lower()
-        words = text_lower.split()
-        
+
         bullish_score = 0
         bearish_score = 0
         bullish_signals = []
@@ -231,7 +229,7 @@ class SignalAggregator:
             session.close()
 
     def _compute_signal(self, stock_id: int, mentions: List[StockMention],
-                         window_start: datetime, window_end: datetime) -> Optional[StockSignal]:
+                        window_start: datetime, window_end: datetime) -> Optional[StockSignal]:
         """Compute aggregated signal for one stock from its mentions."""
         if not mentions:
             return None
@@ -287,8 +285,8 @@ class SignalAggregator:
         )
 
     def _classify_signal(self, avg_sent: float, std: float,
-                          count: int, bullish: int, bearish: int
-                          ) -> Tuple[SignalStrength, str, float]:
+                         count: int, bullish: int, bearish: int
+                         ) -> Tuple[SignalStrength, str, float]:
         """Classify signal strength based on aggregated metrics."""
         # Direction
         if avg_sent > 0.5 and bullish > bearish * 2:

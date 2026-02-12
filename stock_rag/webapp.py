@@ -8,7 +8,6 @@ Then visit http://localhost:5000
 
 import os
 import sys
-import json
 import traceback
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -21,7 +20,7 @@ except ImportError:
     pass  # python-dotenv not installed; rely on shell env
 
 import requests as http_requests
-from flask import Flask, request, jsonify, render_template, send_from_directory
+from flask import Flask, request, jsonify, render_template
 
 # Suppress SSL warnings for corporate proxy environments
 import urllib3
@@ -30,7 +29,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # Add parent dir so stock_rag imports work when run as script
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from sqlalchemy import extract, func, distinct
+from sqlalchemy import extract, distinct
 from stock_rag.database import Database, Platform, RawPost, Stock
 from stock_rag.ingestion import DataIngestionPipeline
 from stock_rag.stock_identifier import StockIdentifier
@@ -81,9 +80,9 @@ aggregator = SignalAggregator(db)
 APIFY_TOKEN = os.getenv('APIFY_API_TOKEN')
 APIFY_BASE_URL = 'https://api.apify.com/v2'
 ACTOR_IDS = {
-    'x':        'ghSpYIW3L1RvT57NT',   # danek/twitter-scraper-ppr
-    'telegram':  'TpLqaxMYSJzwVnXoj',   # cheapget/telegram-channel-message
-    'linkedin':  'LQQIXN9Othf8f7R5n',   # apimaestro/linkedin-profile-posts
+    'x': 'ghSpYIW3L1RvT57NT',   # danek/twitter-scraper-ppr
+    'telegram': 'TpLqaxMYSJzwVnXoj',   # cheapget/telegram-channel-message
+    'linkedin': 'LQQIXN9Othf8f7R5n',   # apimaestro/linkedin-profile-posts
 }
 
 # Seed stock master on first run (idempotent)
@@ -129,16 +128,16 @@ def api_pipeline_status():
     """
     try:
         session = db.get_session()
-        from stock_rag.database import RawPost, StockMention, StockSignal, Source
+        from stock_rag.database import RawPost, StockMention, StockSignal
 
         total_posts = session.query(RawPost).count()
-        unprocessed   = session.query(RawPost).filter(RawPost.is_processed == False).count()
-        processed     = session.query(RawPost).filter(RawPost.is_processed == True).count()
+        unprocessed = session.query(RawPost).filter(RawPost.is_processed == False).count()
+        processed = session.query(RawPost).filter(RawPost.is_processed == True).count()
         stock_relevant = session.query(RawPost).filter(RawPost.is_stock_relevant == True).count()
 
         total_mentions = session.query(StockMention).count()
         unscored = session.query(StockMention).filter(StockMention.sentiment_score == None).count()
-        scored   = total_mentions - unscored
+        scored = total_mentions - unscored
 
         total_signals = session.query(StockSignal).count()
         vs_stats = vs.get_stats()
@@ -163,11 +162,11 @@ def api_pipeline_status():
         return jsonify({
             "ok": True,
             "stages": {
-                "ingest":    {"label": "Ingested Posts",     "total": total_posts,   "done": total_posts,   "pending": 0},
-                "identify":  {"label": "Stock Identification","total": total_posts,   "done": processed,     "pending": unprocessed},
-                "sentiment": {"label": "Sentiment Analysis", "total": total_mentions, "done": scored,        "pending": unscored},
-                "signals":   {"label": "Signal Generation",  "total": total_signals,  "done": total_signals, "pending": 0},
-                "vectors":   {"label": "Vector Sync",        "total": total_vectors,  "done": total_vectors, "pending": stock_relevant - total_vectors if stock_relevant > total_vectors else 0},
+                "ingest": {"label": "Ingested Posts", "total": total_posts, "done": total_posts, "pending": 0},
+                "identify": {"label": "Stock Identification", "total": total_posts, "done": processed, "pending": unprocessed},
+                "sentiment": {"label": "Sentiment Analysis", "total": total_mentions, "done": scored, "pending": unscored},
+                "signals": {"label": "Signal Generation", "total": total_signals, "done": total_signals, "pending": 0},
+                "vectors": {"label": "Vector Sync", "total": total_vectors, "done": total_vectors, "pending": stock_relevant - total_vectors if stock_relevant > total_vectors else 0},
             },
             "summary": {
                 "total_posts": total_posts,
@@ -523,6 +522,7 @@ def api_purge_source(source_id):
         return jsonify({"ok": True, **result})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
+
 
 @app.route("/api/process/identify", methods=["POST"])
 def api_process_identify():
@@ -885,7 +885,6 @@ def api_identify():
         details = identifier.extract_trading_details(text)
         # resolve stock symbols
         for m in matches:
-            stock = db.search_stock(str(m["stock_id"]))
             session = db.get_session()
             try:
                 s = session.query(Stock).filter_by(id=m["stock_id"]).first()
@@ -975,11 +974,11 @@ def api_sources():
 def main():
     port = int(os.getenv("STOCKRAG_PORT", 5000))
     debug = os.getenv("STOCKRAG_DEBUG", "1") == "1"
-    print(f"\n{'='*60}")
-    print(f"  📈 StockRAG Web Dashboard")
+    print(f"\n{'=' * 60}")
+    print("  📈 StockRAG Web Dashboard")
     print(f"  http://localhost:{port}")
     print(f"  DB: {DB_PATH}  |  ChromaDB: {CHROMA_DIR}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
     app.run(host="0.0.0.0", port=port, debug=debug)
 
 

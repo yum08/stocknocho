@@ -10,12 +10,12 @@ import asyncio
 import os
 import logging
 import tempfile
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import List, Dict, Any, Optional
 
 from telethon import TelegramClient
 from telethon.tl.types import (
-    Channel, MessageMediaPhoto, MessageMediaDocument,
+    Channel, MessageMediaPhoto,
     MessageMediaWebPage, ReactionEmoji, ReactionCustomEmoji,
 )
 from telethon.errors import (
@@ -51,6 +51,7 @@ def _ocr_image(file_path: str) -> str:
     except Exception as e:
         logger.debug(f"OCR failed for {file_path}: {e}")
         return ''
+
 
 # Session file stored alongside the DB
 SESSION_DIR = os.path.join(os.path.dirname(__file__), '..', '.telegram_sessions')
@@ -210,7 +211,6 @@ async def _scrape_channel_async(
         ):
             # Stop early when we've gone past the date range
             if offset_date and msg.date:
-                from datetime import timezone as _tz
                 msg_dt = msg.date.replace(tzinfo=None) if msg.date.tzinfo else msg.date
                 cutoff = offset_date.replace(tzinfo=None) if offset_date.tzinfo else offset_date
                 if msg_dt < cutoff:
@@ -268,7 +268,7 @@ def scrape_channel(
     enable_ocr: bool = False,
 ) -> List[Dict[str, Any]]:
     """Synchronous wrapper: scrape messages from a Telegram channel.
-    
+
     Args:
         enable_ocr: If True, download photos and run Tesseract OCR to
             extract text from images (e.g. harmonic pattern charts).
@@ -300,7 +300,6 @@ async def get_channel_info_async(
             raise RuntimeError("Not authenticated. Run telegram_auth first.")
 
         entity = await client.get_entity(channel_username)
-        full = await client.get_entity(entity)
 
         return {
             'id': entity.id,

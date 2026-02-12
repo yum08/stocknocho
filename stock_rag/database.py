@@ -198,7 +198,7 @@ class Stock(Base):
     industry = Column(String(100))
     market_cap = Column(String(20))                                         # "large", "mid", "small"
     is_active = Column(Boolean, default=True)
-    
+
     # Common aliases / keywords people use to refer to this stock
     aliases = Column(JSON)   # ["RIL", "Reliance", "Jio parent"] etc.
 
@@ -314,7 +314,7 @@ class StockSignal(Base):
 class Database:
     """
     Single interface for all database operations.
-    
+
     Following the ProBoards design pattern:
     - Wraps SQLAlchemy session management
     - Provides convenient methods for insert/query
@@ -470,9 +470,9 @@ class Database:
                 return [exact]
             # Partial matches
             return session.query(Stock).filter(
-                (Stock.symbol.contains(query_upper)) |
-                (Stock.name.ilike(f"%{query}%")) |
-                (Stock.nse_symbol == query_upper)
+                (Stock.symbol.contains(query_upper))
+                | (Stock.name.ilike(f"%{query}%"))
+                | (Stock.nse_symbol == query_upper)
             ).all()
         finally:
             session.close()
@@ -480,7 +480,7 @@ class Database:
     # ── Stock Mention operations ─────────────────────────────────────
 
     def insert_stock_mention(self, raw_post_id: int, stock_id: int,
-                              **kwargs) -> Optional[StockMention]:
+                             **kwargs) -> Optional[StockMention]:
         session = self.get_session()
         try:
             existing = session.query(StockMention).filter_by(
@@ -499,9 +499,9 @@ class Database:
         finally:
             session.close()
 
-    def get_mentions_for_stock(self, stock_id: int, 
-                                since: Optional[datetime] = None,
-                                limit: int = 100) -> List[StockMention]:
+    def get_mentions_for_stock(self, stock_id: int,
+                               since: Optional[datetime] = None,
+                               limit: int = 100) -> List[StockMention]:
         session = self.get_session()
         try:
             q = session.query(StockMention).filter(

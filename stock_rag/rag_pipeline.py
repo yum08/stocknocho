@@ -23,7 +23,7 @@ from dotenv import load_dotenv
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-from .database import Database, Stock, StockSignal, StockMention, RawPost
+from .database import Database, Stock, StockSignal, StockMention
 from .vector_store import VectorStore
 from .sentiment import SentimentAnalyzer
 
@@ -54,7 +54,7 @@ class GeminiProvider(LLMProvider):
         try:
             from google import genai
             client = genai.Client(api_key=self.api_key)
-            
+
             full_prompt = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
             response = client.models.generate_content(
                 model=self.model,
@@ -130,7 +130,7 @@ class OllamaProvider(LLMProvider):
 # RAG PIPELINE
 # ──────────────────────────────────────────────────────────────────────
 
-SYSTEM_PROMPT = """You are an expert Indian stock market analyst. Your role is to analyze 
+SYSTEM_PROMPT = """You are an expert Indian stock market analyst. Your role is to analyze
 social media sentiment and discussions about stocks traded on NSE and BSE exchanges.
 
 You will be given:
@@ -175,7 +175,7 @@ Format your response as JSON with this structure:
 class RAGPipeline:
     """
     Main RAG pipeline that ties everything together.
-    
+
     Flow:
     1. User queries for a stock prediction
     2. Pipeline retrieves relevant posts from ChromaDB
@@ -192,17 +192,17 @@ class RAGPipeline:
         self.llm = llm_provider
         self.sentiment_analyzer = SentimentAnalyzer()
 
-    def predict(self, stock_symbol: str, 
+    def predict(self, stock_symbol: str,
                 lookback_hours: int = 72,
                 max_posts: int = 20) -> Dict:
         """
         Generate a prediction for a stock based on social media intelligence.
-        
+
         Args:
             stock_symbol: NSE/BSE stock symbol (e.g. "RELIANCE")
             lookback_hours: How far back to look for posts
             max_posts: Maximum posts to include in RAG context
-            
+
         Returns:
             Prediction dict with reasoning
         """
@@ -271,11 +271,11 @@ class RAGPipeline:
         return prediction
 
     def _build_context(self, stock: Stock, posts: List[Dict],
-                        mentions: List[StockMention],
-                        signal: Optional[StockSignal]) -> str:
+                       mentions: List[StockMention],
+                       signal: Optional[StockSignal]) -> str:
         """Build the context prompt for the LLM."""
         parts = []
-        
+
         parts.append(f"## Stock: {stock.symbol} - {stock.name}")
         parts.append(f"Exchange: {stock.exchange} | Sector: {stock.sector}")
         parts.append("")
@@ -313,7 +313,7 @@ class RAGPipeline:
                 platform = meta.get('platform', 'unknown')
                 author = meta.get('author', 'unknown')
                 date = meta.get('posted_at', 'unknown')
-                
+
                 parts.append(f"### Post {i} [{platform}] by {author} ({date})")
                 parts.append(text)
                 parts.append("")
@@ -333,7 +333,7 @@ class RAGPipeline:
                 json_match = response.split('```json')[1].split('```')[0]
             elif '```' in response:
                 json_match = response.split('```')[1].split('```')[0]
-            
+
             return json.loads(json_match)
         except (json.JSONDecodeError, IndexError):
             # Return as plain text reasoning
@@ -345,16 +345,16 @@ class RAGPipeline:
             }
 
     def _fallback_prediction(self, mentions: List[StockMention],
-                              signal: Optional[StockSignal]) -> Dict:
+                             signal: Optional[StockSignal]) -> Dict:
         """Generate a simple prediction without LLM (pure rule-based)."""
         if signal and signal.avg_sentiment is not None:
             if signal.avg_sentiment > 0.3:
-                return {"prediction": "Bullish", "confidence": "Medium", 
+                return {"prediction": "Bullish", "confidence": "Medium",
                         "reasoning": f"Avg sentiment {signal.avg_sentiment:.2f} from {signal.total_mentions} mentions"}
             elif signal.avg_sentiment < -0.3:
                 return {"prediction": "Bearish", "confidence": "Medium",
                         "reasoning": f"Avg sentiment {signal.avg_sentiment:.2f} from {signal.total_mentions} mentions"}
-        
+
         return {"prediction": "Neutral", "confidence": "Low",
                 "reasoning": "Insufficient data for reliable prediction"}
 

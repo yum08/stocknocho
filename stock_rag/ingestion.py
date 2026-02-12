@@ -13,14 +13,14 @@ import json
 import re
 import hashlib
 from datetime import datetime
-from typing import List, Dict, Any, Optional
+from typing import Dict
 from pathlib import Path
 
 import pandas as pd
 import requests
 from dotenv import load_dotenv
 
-from .database import Database, Platform, RawPost, Source
+from .database import Database, Platform
 
 load_dotenv()
 
@@ -81,7 +81,7 @@ def _generate_external_id(platform: str, data: dict) -> str:
     for key in ['id', 'postId', 'tweet_id', 'tweetId', 'message_id', 'urn']:
         if key in data and data[key]:
             return str(data[key])
-    
+
     # Fallback: hash of content + author + timestamp
     content = str(data.get('text', data.get('full_text', '')))
     author = str(data.get('author', data.get('username', '')))
@@ -104,7 +104,7 @@ def _safe_int(val, default=0):
 def normalize_telegram_post(raw: dict, source_id: int) -> dict:
     """Normalize a Telegram post from Apify output to RawPost schema."""
     text = raw.get('text', raw.get('message', raw.get('messageText', '')))
-    
+
     posted_at = None
     for date_key in ['date', 'datetime', 'timestamp', 'messageDate']:
         if date_key in raw and raw[date_key]:
@@ -163,7 +163,7 @@ def normalize_telegram_post(raw: dict, source_id: int) -> dict:
 def normalize_x_post(raw: dict, source_id: int) -> dict:
     """Normalize an X.com/Twitter post from Apify output to RawPost schema."""
     text = raw.get('full_text', raw.get('text', raw.get('tweetText', '')))
-    
+
     posted_at = None
     for date_key in ['created_at', 'createdAt', 'date', 'timestamp']:
         if date_key in raw and raw[date_key]:
@@ -247,7 +247,7 @@ NORMALIZERS = {
 class DataIngestionPipeline:
     """
     Handles ingesting data from various sources into Level 1 DB.
-    
+
     Supports:
     - Loading from existing CSV/JSON files (your current Apify output)
     - Live scraping via Apify API
@@ -258,7 +258,7 @@ class DataIngestionPipeline:
         self.db = db
 
     def ingest_from_json(self, file_path: str, platform: Platform,
-                          handle: str, **source_kwargs) -> dict:
+                         handle: str, **source_kwargs) -> dict:
         """
         Ingest posts from a JSON file (Apify output format).
         Returns counts of inserted/skipped.
@@ -268,7 +268,7 @@ class DataIngestionPipeline:
 
         with open(file_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
-        
+
         if not isinstance(data, list):
             data = [data]
 
@@ -283,7 +283,7 @@ class DataIngestionPipeline:
         return result
 
     def ingest_from_csv(self, file_path: str, platform: Platform,
-                         handle: str, **source_kwargs) -> dict:
+                        handle: str, **source_kwargs) -> dict:
         """Ingest posts from a CSV file."""
         source = self.db.upsert_source(platform, handle, **source_kwargs)
         job = self.db.create_scrape_job(source.id, {"file": file_path})
@@ -302,8 +302,8 @@ class DataIngestionPipeline:
         return result
 
     def ingest_from_apify_live(self, platform: Platform, handle: str,
-                                actor_id: str, actor_input: dict,
-                                **source_kwargs) -> dict:
+                               actor_id: str, actor_input: dict,
+                               **source_kwargs) -> dict:
         """
         Run an Apify actor and ingest results directly.
         This wraps the Apify API call and normalizes output.

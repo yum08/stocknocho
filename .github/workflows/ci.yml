@@ -46,7 +46,7 @@ jobs:
         run: |
           flake8 stock_rag/ \
             --max-line-length=120 \
-            --ignore=E501,W503,E402 \
+            --ignore=E501,W503,E402,E711,E712 \
             --count --statistics
 
   # ───── Stage 2: Unit & Integration Tests ─────

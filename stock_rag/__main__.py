@@ -20,10 +20,7 @@ Usage:
 
 import argparse
 import json
-import sys
 import os
-from datetime import datetime
-from pathlib import Path
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -43,7 +40,7 @@ def get_vector_store(persist_dir: str = None):
 
 def get_llm(provider: str = None):
     provider = provider or os.getenv("STOCKRAG_LLM_PROVIDER", "gemini")
-    
+
     if provider == "gemini":
         from .rag_pipeline import GeminiProvider
         return GeminiProvider()
@@ -60,7 +57,6 @@ def get_llm(provider: str = None):
 
 def cmd_ingest(args):
     """Ingest data from existing files."""
-    from .database import Database
     from .ingestion import DataIngestionPipeline
 
     db = get_db(args.db)
@@ -175,7 +171,7 @@ def cmd_stats(args):
     """Show database statistics."""
     db = get_db(args.db)
     stats = db.get_stats()
-    
+
     print("=" * 60)
     print("StockRAG - Database Statistics")
     print("=" * 60)
@@ -185,11 +181,11 @@ def cmd_stats(args):
     try:
         vs = get_vector_store()
         vs_stats = vs.get_stats()
-        print(f"\n  Vector Store:")
+        print("\n  Vector Store:")
         for k, v in vs_stats.items():
             print(f"  {k:>25}: {v}")
     except Exception:
-        print(f"\n  Vector Store: not available")
+        print("\n  Vector Store: not available")
 
 
 def cmd_scrape_live(args):
@@ -211,7 +207,7 @@ def cmd_scrape_live(args):
         return
 
     print(f"Starting live scrape: {args.platform} / {args.handle}")
-    
+
     # Actor IDs from your existing scrapers
     actor_ids = {
         'telegram': 'f9ah2tzQwzhF8OyfK',
@@ -220,7 +216,7 @@ def cmd_scrape_live(args):
     }
 
     actor_input = {"handle": args.handle, "maxPosts": args.max_posts}
-    
+
     try:
         result = pipeline.ingest_from_apify_live(
             platform=platform,
@@ -239,7 +235,7 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument('--db', default=None, help='Database file path')
-    
+
     subparsers = parser.add_subparsers(dest='command', help='Command to run')
 
     # ingest
@@ -280,7 +276,7 @@ def main():
     p_scrape.set_defaults(func=cmd_scrape_live)
 
     args = parser.parse_args()
-    
+
     if not args.command:
         # Default: run full pipeline (ingest + process)
         print("Running full pipeline (ingest + process)...")

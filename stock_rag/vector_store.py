@@ -3,9 +3,9 @@ Vector Store - ChromaDB-based vector database for RAG retrieval.
 ==================================================================
 
 Why Vector DB + SQLite (not just one)?
-- SQLite (Level 1 & 2): Structured queries — "show me all RELIANCE mentions 
+- SQLite (Level 1 & 2): Structured queries — "show me all RELIANCE mentions
   from last 7 days sorted by date" → fast, indexed, relational
-- ChromaDB (Vector): Semantic queries — "what are people saying about banking 
+- ChromaDB (Vector): Semantic queries — "what are people saying about banking
   sector outlook" → embedding similarity search
 
 Together they form a powerful hybrid:
@@ -14,19 +14,16 @@ Together they form a powerful hybrid:
   3. The RAG pipeline queries ChromaDB, retrieves context, feeds to LLM
 """
 
-import os
-from datetime import datetime
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional
 
 try:
     import chromadb
-    from chromadb.config import Settings
     HAS_CHROMADB = True
 except ImportError:
     HAS_CHROMADB = False
     print("⚠ chromadb not installed. Install with: pip install chromadb")
 
-from .database import Database, RawPost, Platform
+from .database import Database, RawPost
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -36,13 +33,13 @@ from .database import Database, RawPost, Platform
 class VectorStore:
     """
     ChromaDB-based vector store for stock market social media posts.
-    
+
     ChromaDB handles:
     - Embedding generation (default: all-MiniLM-L6-v2 via sentence-transformers)
     - Vector storage and indexing
     - Similarity search
     - Metadata filtering
-    
+
     You can also use OpenAI/Gemini embeddings for better quality.
     """
 
@@ -51,7 +48,7 @@ class VectorStore:
     def __init__(self, persist_dir: str = "./chroma_db"):
         if not HAS_CHROMADB:
             raise ImportError("chromadb is required. Install: pip install chromadb")
-        
+
         self.persist_dir = persist_dir
         self.client = chromadb.PersistentClient(path=persist_dir)
         self.collection = self.client.get_or_create_collection(
@@ -74,7 +71,7 @@ class VectorStore:
         for post in posts:
             post_id = str(post.get('id', ''))
             text = post.get('text_clean') or post.get('text', '')
-            
+
             if not text or not post_id:
                 continue
 
@@ -84,7 +81,7 @@ class VectorStore:
 
             ids.append(f"post_{post_id}")
             documents.append(text[:2000])  # ChromaDB has token limits
-            
+
             meta = {
                 "platform": post.get('platform', 'unknown'),
                 "author": str(post.get('author', ''))[:100],
@@ -96,7 +93,7 @@ class VectorStore:
             # Add stock symbols if available
             if post.get('stock_symbols'):
                 meta['stock_symbols'] = ','.join(post['stock_symbols'])
-            
+
             metadatas.append(meta)
 
         if not ids:
@@ -115,13 +112,13 @@ class VectorStore:
                stock_symbol: Optional[str] = None) -> List[Dict]:
         """
         Semantic search for relevant posts.
-        
+
         Args:
             query: Natural language query
             n_results: Number of results to return
             platform: Filter by platform (telegram, x, linkedin)
             stock_symbol: Filter by stock symbol
-        
+
         Returns:
             List of {id, text, metadata, distance} dicts
         """
