@@ -1,0 +1,1303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StockRAG — Architecture &amp; Data-Flow Documentation</title>
+<style>
+  /* ──── RESET & BASE ──── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: #0b1120;
+    color: #cbd5e1;
+    line-height: 1.7;
+    overflow-x: hidden;
+  }
+
+  /* ──── SCROLLBAR ──── */
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-track { background: #0f172a; }
+  ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+
+  /* ──── NAVIGATION ──── */
+  .top-nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: rgba(15, 23, 42, 0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid #1e293b;
+    padding: 0 2rem;
+    display: flex; align-items: center; height: 60px;
+  }
+  .top-nav .logo {
+    font-weight: 800; font-size: 1.25rem;
+    background: linear-gradient(135deg, #38bdf8, #818cf8);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    margin-right: 2rem;
+  }
+  .top-nav a {
+    color: #94a3b8; text-decoration: none; font-size: 0.85rem;
+    padding: 0.5rem 1rem; border-radius: 6px; transition: all 0.2s;
+  }
+  .top-nav a:hover { color: #e2e8f0; background: #1e293b; }
+
+  /* ──── HERO ──── */
+  .hero {
+    margin-top: 60px;
+    padding: 5rem 2rem 4rem;
+    text-align: center;
+    background: radial-gradient(ellipse at 50% 0%, rgba(56,189,248,.12) 0%, transparent 60%);
+  }
+  .hero h1 {
+    font-size: clamp(2rem, 5vw, 3.4rem);
+    font-weight: 900; letter-spacing: -1px;
+    background: linear-gradient(135deg, #38bdf8 0%, #818cf8 50%, #c084fc 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    margin-bottom: 1rem;
+  }
+  .hero .subtitle {
+    font-size: 1.15rem; color: #94a3b8; max-width: 720px; margin: 0 auto 2rem;
+  }
+  .badge-row { display: flex; justify-content: center; gap: 0.6rem; flex-wrap: wrap; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 0.35rem;
+    padding: 0.3rem 0.85rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600;
+    border: 1px solid #1e293b; background: #0f172a;
+  }
+  .badge.py { color: #38bdf8; border-color: #0e4f6e; }
+  .badge.db { color: #a78bfa; border-color: #4c3a8a; }
+  .badge.rag { color: #34d399; border-color: #166534; }
+  .badge.llm { color: #fbbf24; border-color: #78350f; }
+
+  /* ──── SECTION WRAPPERS ──── */
+  .container { max-width: 1240px; margin: 0 auto; padding: 0 1.5rem; }
+  section { padding: 4rem 0; }
+  section:nth-child(even) { background: rgba(15, 23, 42, 0.45); }
+
+  .section-title {
+    font-size: 1.85rem; font-weight: 800; margin-bottom: 0.5rem;
+    background: linear-gradient(90deg, #38bdf8, #818cf8);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .section-sub { color: #64748b; margin-bottom: 2.5rem; font-size: 0.95rem; }
+
+  /* ──── CARDS ──── */
+  .card-grid {
+    display: grid; gap: 1.5rem;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  }
+  .card {
+    background: #111827;
+    border: 1px solid #1e293b;
+    border-radius: 14px;
+    padding: 1.8rem;
+    transition: transform 0.25s, box-shadow 0.25s;
+    position: relative; overflow: hidden;
+  }
+  .card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, #38bdf8, #818cf8, #c084fc);
+  }
+  .card:hover { transform: translateY(-4px); box-shadow: 0 12px 40px rgba(56,189,248,.08); }
+  .card h3 { font-size: 1.1rem; font-weight: 700; color: #e2e8f0; margin-bottom: 0.6rem; display: flex; align-items: center; gap: 0.5rem; }
+  .card p, .card li { font-size: 0.88rem; color: #94a3b8; }
+  .card ul { list-style: none; padding: 0; }
+  .card ul li { padding: 0.25rem 0; padding-left: 1.2rem; position: relative; }
+  .card ul li::before { content: '›'; position: absolute; left: 0; color: #38bdf8; font-weight: bold; }
+
+  /* ──── DATA FLOW DIAGRAM ──── */
+  .flow-diagram {
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 16px;
+    padding: 2.5rem 2rem;
+    overflow-x: auto;
+  }
+  .flow-row {
+    display: flex; align-items: stretch; justify-content: center;
+    gap: 1rem; flex-wrap: wrap; margin-bottom: 0.5rem;
+  }
+  .flow-arrow {
+    display: flex; justify-content: center; padding: 0.5rem 0;
+    font-size: 1.8rem; color: #334155;
+  }
+  .flow-arrow.branch { gap: 8rem; }
+  .flow-box {
+    background: #111827;
+    border: 1px solid #1e293b;
+    border-radius: 12px;
+    padding: 1.2rem 1.5rem;
+    min-width: 180px;
+    text-align: center;
+    position: relative;
+  }
+  .flow-box .label {
+    font-size: 0.65rem; text-transform: uppercase; letter-spacing: 1.5px;
+    color: #64748b; margin-bottom: 0.4rem;
+  }
+  .flow-box .title {
+    font-weight: 700; font-size: 0.95rem; color: #e2e8f0;
+  }
+  .flow-box .detail {
+    font-size: 0.72rem; color: #64748b; margin-top: 0.3rem;
+  }
+  .flow-box.src { border-color: #0e7490; background: linear-gradient(135deg, rgba(14,116,144,.15), transparent); }
+  .flow-box.src .title { color: #22d3ee; }
+  .flow-box.ingest { border-color: #4338ca; background: linear-gradient(135deg, rgba(67,56,202,.12), transparent); }
+  .flow-box.ingest .title { color: #a5b4fc; }
+  .flow-box.l1 { border-color: #1d4ed8; background: linear-gradient(135deg, rgba(29,78,216,.12), transparent); }
+  .flow-box.l1 .title { color: #60a5fa; }
+  .flow-box.proc { border-color: #7c3aed; background: linear-gradient(135deg, rgba(124,58,237,.12), transparent); }
+  .flow-box.proc .title { color: #c4b5fd; }
+  .flow-box.l2 { border-color: #9333ea; background: linear-gradient(135deg, rgba(147,51,234,.1), transparent); }
+  .flow-box.l2 .title { color: #d8b4fe; }
+  .flow-box.vec { border-color: #059669; background: linear-gradient(135deg, rgba(5,150,105,.12), transparent); }
+  .flow-box.vec .title { color: #6ee7b7; }
+  .flow-box.sent { border-color: #b45309; background: linear-gradient(135deg, rgba(180,83,9,.1), transparent); }
+  .flow-box.sent .title { color: #fcd34d; }
+  .flow-box.rag { border-color: #be185d; background: linear-gradient(135deg, rgba(190,24,93,.1), transparent); }
+  .flow-box.rag .title { color: #f9a8d4; }
+  .flow-box.pred { border-color: #16a34a; background: linear-gradient(135deg, rgba(22,163,74,.15), transparent); }
+  .flow-box.pred .title { color: #4ade80; }
+
+  .flow-box.wide { flex: 1; max-width: 700px; }
+  .flow-box.medium { flex: 1; max-width: 340px; }
+
+  /* ──── SCHEMA TABLE ──── */
+  .schema-grid {
+    display: grid; gap: 1.5rem;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  }
+  .schema-table {
+    background: #111827;
+    border: 1px solid #1e293b;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .schema-table .table-header {
+    padding: 0.9rem 1.2rem;
+    font-weight: 700; font-size: 0.95rem;
+    display: flex; align-items: center; gap: 0.5rem;
+  }
+  .schema-table.l1 .table-header { background: linear-gradient(90deg, rgba(29,78,216,.2), transparent); color: #60a5fa; }
+  .schema-table.l2 .table-header { background: linear-gradient(90deg, rgba(147,51,234,.2), transparent); color: #d8b4fe; }
+  .schema-table table { width: 100%; border-collapse: collapse; }
+  .schema-table th {
+    text-align: left; padding: 0.5rem 1.2rem; font-size: 0.7rem;
+    text-transform: uppercase; letter-spacing: 1px;
+    color: #475569; border-bottom: 1px solid #1e293b;
+    background: #0f172a;
+  }
+  .schema-table td {
+    padding: 0.4rem 1.2rem; font-size: 0.82rem;
+    border-bottom: 1px solid rgba(30,41,59,.5);
+  }
+  .schema-table td:first-child { color: #e2e8f0; font-weight: 600; font-family: 'Cascadia Code', 'Fira Code', monospace; }
+  .schema-table td:nth-child(2) { color: #38bdf8; font-size: 0.75rem; font-family: monospace; }
+  .schema-table td:nth-child(3) { color: #64748b; font-size: 0.78rem; }
+  .pk { color: #fbbf24 !important; }
+  .fk { color: #c084fc !important; }
+
+  /* ──── CALL-FLOW SEQUENCE ──── */
+  .sequence {
+    position: relative;
+    padding-left: 3rem;
+  }
+  .sequence::before {
+    content: '';
+    position: absolute; left: 1.05rem; top: 0; bottom: 0;
+    width: 2px;
+    background: linear-gradient(to bottom, #38bdf8, #818cf8, #c084fc, #34d399);
+  }
+  .seq-step {
+    position: relative;
+    margin-bottom: 2rem;
+    padding: 1.3rem 1.5rem;
+    background: #111827;
+    border: 1px solid #1e293b;
+    border-radius: 12px;
+  }
+  .seq-step::before {
+    content: attr(data-step);
+    position: absolute; left: -2.85rem; top: 1.1rem;
+    width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.7rem; font-weight: 800;
+    background: #1e293b; color: #38bdf8; border: 2px solid #38bdf8;
+  }
+  .seq-step h4 { font-size: 1rem; color: #e2e8f0; margin-bottom: 0.3rem; }
+  .seq-step .module { font-size: 0.72rem; color: #818cf8; font-family: monospace; margin-bottom: 0.4rem; }
+  .seq-step p { font-size: 0.85rem; color: #94a3b8; }
+
+  /* ──── CODE BLOCKS ──── */
+  .code-block {
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 10px;
+    padding: 1.2rem 1.5rem;
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    font-size: 0.82rem;
+    color: #e2e8f0;
+    overflow-x: auto;
+    margin: 1rem 0;
+    line-height: 1.9;
+  }
+  .code-block .comment { color: #475569; }
+  .code-block .cmd { color: #38bdf8; }
+  .code-block .flag { color: #a78bfa; }
+  .code-block .arg { color: #fbbf24; }
+
+  /* ──── COMPARISON TABLE ──── */
+  .compare-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #111827;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid #1e293b;
+  }
+  .compare-table th {
+    padding: 0.8rem 1.2rem;
+    text-align: left;
+    background: #0f172a;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #94a3b8;
+    border-bottom: 1px solid #1e293b;
+  }
+  .compare-table td {
+    padding: 0.65rem 1.2rem;
+    font-size: 0.85rem;
+    border-bottom: 1px solid rgba(30,41,59,.4);
+  }
+  .compare-table tr:hover td { background: rgba(56,189,248,.03); }
+  .yes { color: #4ade80; font-weight: 600; }
+  .no { color: #f87171; }
+  .partial { color: #fbbf24; }
+
+  /* ──── FILE TREE ──── */
+  .file-tree {
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 12px;
+    padding: 1.5rem 2rem;
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+    font-size: 0.82rem;
+    color: #94a3b8;
+    line-height: 2;
+  }
+  .file-tree .folder { color: #60a5fa; }
+  .file-tree .file { color: #e2e8f0; }
+  .file-tree .desc { color: #475569; font-style: italic; }
+
+  /* ──── ENV TABLE ──── */
+  .env-table {
+    width: 100%; border-collapse: collapse;
+    background: #111827; border-radius: 12px;
+    overflow: hidden; border: 1px solid #1e293b;
+  }
+  .env-table th {
+    padding: 0.7rem 1.2rem; text-align: left;
+    background: #0f172a; font-size: 0.75rem;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    color: #94a3b8; border-bottom: 1px solid #1e293b;
+  }
+  .env-table td {
+    padding: 0.55rem 1.2rem; font-size: 0.82rem;
+    border-bottom: 1px solid rgba(30,41,59,.4);
+  }
+  .env-table td:first-child { font-family: monospace; color: #38bdf8; font-weight: 600; }
+  .env-table td:nth-child(3) { font-family: monospace; color: #64748b; font-size: 0.78rem; }
+
+  /* ──── FOOTER ──── */
+  footer {
+    text-align: center; padding: 3rem 2rem;
+    color: #475569; font-size: 0.8rem;
+    border-top: 1px solid #1e293b;
+  }
+  footer a { color: #38bdf8; text-decoration: none; }
+
+  /* ──── RESPONSIVE ──── */
+  @media (max-width: 768px) {
+    .flow-row { flex-direction: column; align-items: center; }
+    .top-nav { padding: 0 1rem; }
+    .hero { padding: 4rem 1rem 3rem; }
+    .sequence { padding-left: 2.5rem; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════ NAVIGATION ═══════════════ -->
+<nav class="top-nav">
+  <span class="logo">📈 StockRAG</span>
+  <a href="#architecture">Architecture</a>
+  <a href="#dataflow">Data Flow</a>
+  <a href="#callflow">Call Flow</a>
+  <a href="#schema">Schema</a>
+  <a href="#testing">Testing & CI</a>
+  <a href="#usage">Usage</a>
+  <a href="#config">Config</a>
+</nav>
+
+<!-- ═══════════════ HERO ═══════════════ -->
+<header class="hero">
+  <h1>StockRAG</h1>
+  <p class="subtitle">
+    RAG-based Stock Market Prediction System — scrapes social media, identifies NSE/BSE stock mentions,
+    analyzes sentiment, and generates AI-powered predictions using Retrieval Augmented Generation.
+  </p>
+  <div class="badge-row">
+    <span class="badge py">🐍 Python</span>
+    <span class="badge db">🗄️ SQLite + SQLAlchemy</span>
+    <span class="badge db">🧬 ChromaDB Vectors</span>
+    <span class="badge rag">🔍 RAG Pipeline</span>
+    <span class="badge llm">🤖 Gemini / GPT-4 / Ollama</span>
+    <span class="badge py">🧪 136 Tests • 75% Cov</span>
+  </div>
+</header>
+
+<!-- ═══════════════ ARCHITECTURE OVERVIEW ═══════════════ -->
+<section id="architecture">
+  <div class="container">
+    <h2 class="section-title">System Architecture</h2>
+    <p class="section-sub">Multi-stage pipeline with two-level database design, vector store, and LLM-powered RAG prediction.</p>
+
+    <div class="card-grid">
+      <!-- Card 1 -->
+      <div class="card">
+        <h3>🌐 Data Sources</h3>
+        <p>Scrapes social media via Apify cloud APIs — no personal credentials needed.</p>
+        <ul>
+          <li><strong>Telegram</strong> — Channel posts, media, reactions</li>
+          <li><strong>X.com (Twitter)</strong> — Tweets by handle or search</li>
+          <li><strong>LinkedIn</strong> — Profile posts, engagement</li>
+          <li><strong>Extensible</strong> — Reddit, YouTube, RSS (add normalizer)</li>
+        </ul>
+      </div>
+
+      <!-- Card 2 -->
+      <div class="card">
+        <h3>⚙️ Ingestion Pipeline</h3>
+        <p>Normalizes all platforms into a unified schema and deduplicates.</p>
+        <ul>
+          <li>Platform-specific normalizers for each data source</li>
+          <li>Deduplication via <code>platform + external_id</code></li>
+          <li>Supports JSON files, CSV files, and live Apify API</li>
+          <li>Auto-discovers existing scraper output files</li>
+        </ul>
+      </div>
+
+      <!-- Card 3 -->
+      <div class="card">
+        <h3>🗄️ Level 1 DB — Raw Posts</h3>
+        <p>All scraped posts land here first (SQLite via SQLAlchemy ORM).</p>
+        <ul>
+          <li><strong>sources</strong> — Channels, handles, reliability scores</li>
+          <li><strong>raw_posts</strong> — Unified post schema (text, author, views, likes)</li>
+          <li><strong>scrape_jobs</strong> — Track each scrape run status</li>
+        </ul>
+      </div>
+
+      <!-- Card 4 -->
+      <div class="card">
+        <h3>🔍 Stock Identifier</h3>
+        <p>Maps raw posts to NSE/BSE stocks with multi-strategy matching.</p>
+        <ul>
+          <li>Exact symbol match — <code>RELIANCE</code>, <code>TCS</code>, <code>INFY</code></li>
+          <li>Alias match — <code>RIL</code> → Reliance, <code>SBI</code> → State Bank</li>
+          <li>Company name match — "Tata Motors", "Airtel"</li>
+          <li>Regex extraction — target price, stop loss, action</li>
+        </ul>
+      </div>
+
+      <!-- Card 5 -->
+      <div class="card">
+        <h3>📊 Level 2 DB — Stock-Mapped</h3>
+        <p>Filtered and enriched data mapped to specific NSE/BSE scripts.</p>
+        <ul>
+          <li><strong>stocks</strong> — Master list (symbol, ISIN, sector, aliases)</li>
+          <li><strong>stock_mentions</strong> — Post↔Stock with sentiment &amp; targets</li>
+          <li><strong>stock_signals</strong> — Aggregated signals per stock per window</li>
+        </ul>
+      </div>
+
+      <!-- Card 6 -->
+      <div class="card">
+        <h3>💬 Sentiment Engine</h3>
+        <p>Rule-based scoring tuned for Indian stock market social media.</p>
+        <ul>
+          <li>Bullish/Bearish word scoring with weights</li>
+          <li>Indian market slang — "upper circuit", "FII buying", etc.</li>
+          <li>Negation handling — "not bullish" → bearish</li>
+          <li>Signal aggregation per stock per time window</li>
+        </ul>
+      </div>
+
+      <!-- Card 7 -->
+      <div class="card">
+        <h3>🧬 Vector Store (ChromaDB)</h3>
+        <p>Semantic embeddings of posts for RAG retrieval.</p>
+        <ul>
+          <li>Auto-generates embeddings (sentence-transformers)</li>
+          <li>Cosine similarity search for relevant context</li>
+          <li>Metadata filtering by platform, stock, date</li>
+          <li>Auto-syncs from SQLite on each pipeline run</li>
+        </ul>
+      </div>
+
+      <!-- Card 8 -->
+      <div class="card">
+        <h3>🤖 RAG Pipeline</h3>
+        <p>Retrieval Augmented Generation for intelligent stock predictions.</p>
+        <ul>
+          <li>Queries ChromaDB for semantically relevant posts</li>
+          <li>Enriches with structured signals from SQLite</li>
+          <li>Constructs detailed context prompt for LLM</li>
+          <li>Returns structured JSON with prediction + reasoning</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ DATA FLOW DIAGRAM ═══════════════ -->
+<section id="dataflow">
+  <div class="container">
+    <h2 class="section-title">End-to-End Data Flow</h2>
+    <p class="section-sub">Visual representation of how data moves through the entire system.</p>
+
+    <div class="flow-diagram">
+
+      <!-- Row 1: Sources -->
+      <div class="flow-row">
+        <div class="flow-box src">
+          <div class="label">Source</div>
+          <div class="title">📱 Telegram</div>
+          <div class="detail">Channels via Apify</div>
+        </div>
+        <div class="flow-box src">
+          <div class="label">Source</div>
+          <div class="title">🐦 X.com</div>
+          <div class="detail">Handles &amp; search</div>
+        </div>
+        <div class="flow-box src">
+          <div class="label">Source</div>
+          <div class="title">💼 LinkedIn</div>
+          <div class="detail">Profile posts</div>
+        </div>
+        <div class="flow-box src">
+          <div class="label">Source</div>
+          <div class="title">📂 CSV / JSON</div>
+          <div class="detail">Existing files</div>
+        </div>
+      </div>
+
+      <div class="flow-arrow">▼ &nbsp;&nbsp;&nbsp; ▼ &nbsp;&nbsp;&nbsp; ▼ &nbsp;&nbsp;&nbsp; ▼</div>
+
+      <!-- Row 2: Ingestion -->
+      <div class="flow-row">
+        <div class="flow-box ingest wide">
+          <div class="label">Module: ingestion.py</div>
+          <div class="title">⚙️ Data Ingestion Pipeline</div>
+          <div class="detail">Normalize → Deduplicate → Insert &nbsp;|&nbsp; Platform-specific normalizers for each source format</div>
+        </div>
+      </div>
+
+      <div class="flow-arrow">▼</div>
+
+      <!-- Row 3: Level 1 DB -->
+      <div class="flow-row">
+        <div class="flow-box l1 wide">
+          <div class="label">Level 1 Database — SQLite</div>
+          <div class="title">🗄️ Raw Posts DB</div>
+          <div class="detail">
+            <strong>sources</strong> (platform, handle, reliability) &nbsp;→&nbsp;
+            <strong>raw_posts</strong> (text, author, views, likes, posted_at) &nbsp;→&nbsp;
+            <strong>scrape_jobs</strong> (status, counts)
+          </div>
+        </div>
+      </div>
+
+      <div class="flow-arrow">▼</div>
+
+      <!-- Row 4: Stock Identifier -->
+      <div class="flow-row">
+        <div class="flow-box proc wide">
+          <div class="label">Module: stock_identifier.py</div>
+          <div class="title">🔍 Stock Identifier Engine</div>
+          <div class="detail">Symbol match → Alias match → Name match → Extract target/SL/action → Detect analysis type (technical vs fundamental)</div>
+        </div>
+      </div>
+
+      <div class="flow-arrow">▼</div>
+
+      <!-- Row 5: Level 2 DB -->
+      <div class="flow-row">
+        <div class="flow-box l2 wide">
+          <div class="label">Level 2 Database — SQLite</div>
+          <div class="title">📊 Stock-Mapped DB</div>
+          <div class="detail">
+            <strong>stocks</strong> (symbol, name, ISIN, sector, aliases) &nbsp;→&nbsp;
+            <strong>stock_mentions</strong> (sentiment, target_price, stop_loss, action) &nbsp;→&nbsp;
+            <strong>stock_signals</strong> (aggregated per window)
+          </div>
+        </div>
+      </div>
+
+      <div class="flow-arrow branch">▼ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ▼</div>
+
+      <!-- Row 6: Sentiment + Vector (parallel) -->
+      <div class="flow-row">
+        <div class="flow-box sent medium">
+          <div class="label">Module: sentiment.py</div>
+          <div class="title">💬 Sentiment Engine</div>
+          <div class="detail">Rule-based scoring → Aggregation → Signal generation (buy/sell/hold)</div>
+        </div>
+        <div class="flow-box vec medium">
+          <div class="label">Module: vector_store.py</div>
+          <div class="title">🧬 ChromaDB Vector Store</div>
+          <div class="detail">Embed posts → Cosine similarity index → Semantic retrieval for RAG</div>
+        </div>
+      </div>
+
+      <div class="flow-arrow branch">▼ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ▼</div>
+
+      <!-- Row 7: RAG Pipeline -->
+      <div class="flow-row">
+        <div class="flow-box rag wide">
+          <div class="label">Module: rag_pipeline.py</div>
+          <div class="title">🤖 RAG Pipeline + LLM</div>
+          <div class="detail">
+            1. Retrieve relevant posts (ChromaDB) &nbsp;→&nbsp;
+            2. Enrich with signals (SQLite) &nbsp;→&nbsp;
+            3. Build context prompt &nbsp;→&nbsp;
+            4. Send to LLM (Gemini / GPT-4 / Ollama) &nbsp;→&nbsp;
+            5. Parse structured response
+          </div>
+        </div>
+      </div>
+
+      <div class="flow-arrow">▼</div>
+
+      <!-- Row 8: Output -->
+      <div class="flow-row">
+        <div class="flow-box pred">
+          <div class="label">Output</div>
+          <div class="title">✅ Stock Prediction</div>
+          <div class="detail">Direction (Bullish/Bearish) • Confidence • Key Factors • Risk Factors • Target Price • Reasoning</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ E2E CALL FLOW ═══════════════ -->
+<section id="callflow">
+  <div class="container">
+    <h2 class="section-title">End-to-End Call Flow</h2>
+    <p class="section-sub">Step-by-step sequence from data ingestion to prediction output.</p>
+
+    <div class="sequence">
+      <div class="seq-step" data-step="1">
+        <h4>Scrape / Import Data</h4>
+        <div class="module">__main__.py → cmd_ingest() → ingestion.DataIngestionPipeline</div>
+        <p>
+          Scans the workspace for existing CSV/JSON files (or runs live Apify scrape).
+          Each file is auto-detected by platform (telegram, x_posts, linkedin patterns).
+          Platform-specific normalizers (<code>normalize_telegram_post</code>, <code>normalize_x_post</code>, <code>normalize_linkedin_post</code>)
+          convert raw data to the unified <code>RawPost</code> schema.
+        </p>
+      </div>
+
+      <div class="seq-step" data-step="2">
+        <h4>Deduplicate &amp; Store in Level 1 DB</h4>
+        <div class="module">ingestion.py → Database.insert_raw_post() → Database.bulk_insert_raw_posts()</div>
+        <p>
+          Each post is checked for duplicates via <code>platform + external_id</code> unique constraint.
+          New posts are inserted into <code>raw_posts</code> table, duplicates are skipped.
+          The scrape job is tracked in <code>scrape_jobs</code> with counts (scraped, new, errors).
+        </p>
+      </div>
+
+      <div class="seq-step" data-step="3">
+        <h4>Identify Stocks in Posts</h4>
+        <div class="module">__main__.py → cmd_process() → StockIdentifier.process_unprocessed_posts()</div>
+        <p>
+          Fetches all unprocessed posts (<code>is_processed=False</code>).
+          For each post, runs multi-strategy matching: <strong>Symbol</strong> (RELIANCE, TCS) →
+          <strong>Alias</strong> (RIL→Reliance, SBI→State Bank) → <strong>Company Name</strong> (partial match).
+          Posts with matches are marked <code>is_stock_relevant=True</code>; creates entries in <code>stock_mentions</code>.
+        </p>
+      </div>
+
+      <div class="seq-step" data-step="4">
+        <h4>Extract Trading Details</h4>
+        <div class="module">stock_identifier.py → StockIdentifier.extract_trading_details()</div>
+        <p>
+          Regex extraction of trading signals from post text:
+          <strong>Target price</strong> ("target 2800", "tgt: 2800"),
+          <strong>Stop loss</strong> ("SL 2650", "stop loss 2650"),
+          <strong>Action</strong> ("buy", "sell", "accumulate"),
+          <strong>Timeframe</strong> ("intraday", "swing", "positional").
+          Also detects analysis type (technical vs fundamental) by keyword scoring.
+        </p>
+      </div>
+
+      <div class="seq-step" data-step="5">
+        <h4>Run Sentiment Analysis</h4>
+        <div class="module">__main__.py → SignalAggregator.analyze_mentions() → SentimentAnalyzer.analyze()</div>
+        <p>
+          Each stock mention without sentiment is scored using the rule-based engine.
+          Bullish/bearish word lists with weights, negation detection, and Indian market slang
+          produce a score from -1.0 (very bearish) to +1.0 (very bullish) with a confidence level.
+          Results are saved to the <code>sentiment_score</code> and <code>sentiment_label</code> columns.
+        </p>
+      </div>
+
+      <div class="seq-step" data-step="6">
+        <h4>Generate Aggregated Signals</h4>
+        <div class="module">sentiment.py → SignalAggregator.generate_signals() → Database.insert_signal()</div>
+        <p>
+          Groups mentions by stock within a time window (default 72 hours).
+          Computes: average sentiment, standard deviation, bullish/bearish/neutral counts,
+          technical vs fundamental mention breakdown.
+          Produces a <code>StockSignal</code> with signal strength (STRONG_BUY → STRONG_SELL),
+          predicted direction, and confidence.
+        </p>
+      </div>
+
+      <div class="seq-step" data-step="7">
+        <h4>Sync to Vector Store</h4>
+        <div class="module">vector_store.py → VectorStore.sync_from_db()</div>
+        <p>
+          All stock-relevant processed posts are embedded and upserted into ChromaDB.
+          Uses sentence-transformers (all-MiniLM-L6-v2) for embedding generation.
+          Metadata (platform, author, date, stock symbols) is stored alongside for filtered retrieval.
+        </p>
+      </div>
+
+      <div class="seq-step" data-step="8">
+        <h4>RAG Retrieval + Prediction</h4>
+        <div class="module">rag_pipeline.py → RAGPipeline.predict() → LLMProvider.generate()</div>
+        <p>
+          <strong>Retrieval:</strong> Queries ChromaDB with stock-focused search queries, retrieves top-N similar posts.<br>
+          <strong>Enrichment:</strong> Fetches latest <code>StockSignal</code> and recent <code>StockMention</code> records from SQLite.<br>
+          <strong>Context Building:</strong> Constructs detailed prompt with signal summary, mention details, and full post texts.<br>
+          <strong>Generation:</strong> Sends to LLM (Gemini/GPT-4/Ollama) with system prompt for structured JSON prediction.<br>
+          <strong>Parsing:</strong> Extracts prediction, confidence, key factors, risk factors, target price, reasoning.
+        </p>
+      </div>
+
+      <div class="seq-step" data-step="9">
+        <h4>Output Structured Prediction</h4>
+        <div class="module">RAGPipeline.predict() → JSON response</div>
+        <p>
+          Returns structured JSON: <code>prediction</code> (Bullish/Bearish/Neutral),
+          <code>confidence</code> (Low/Medium/High), <code>confidence_score</code> (0-1),
+          <code>suggested_action</code> (Buy/Sell/Hold), <code>target_price_range</code>,
+          <code>key_factors</code>, <code>risk_factors</code>, <code>conflicting_signals</code>,
+          and detailed <code>reasoning</code>.
+          Also includes a fallback rule-based prediction if LLM fails.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ DATABASE SCHEMA ═══════════════ -->
+<section id="schema">
+  <div class="container">
+    <h2 class="section-title">Database Schema</h2>
+    <p class="section-sub">Two-level SQLite design with SQLAlchemy ORM — inspired by the ProBoards scraper pattern.</p>
+
+    <div class="schema-grid">
+      <!-- sources -->
+      <div class="schema-table l1">
+        <div class="table-header">📁 sources</div>
+        <table>
+          <tr><th>Column</th><th>Type</th><th>Description</th></tr>
+          <tr><td class="pk">id</td><td>INTEGER PK</td><td>Auto-increment</td></tr>
+          <tr><td>platform</td><td>ENUM</td><td>telegram, x, linkedin, reddit…</td></tr>
+          <tr><td>handle</td><td>VARCHAR(255)</td><td>Channel/handle name</td></tr>
+          <tr><td>display_name</td><td>VARCHAR(255)</td><td>Human-readable name</td></tr>
+          <tr><td>category</td><td>VARCHAR(100)</td><td>stock_tip, news, analyst…</td></tr>
+          <tr><td>reliability_score</td><td>FLOAT</td><td>0.0 – 1.0 reliability</td></tr>
+          <tr><td>is_active</td><td>BOOLEAN</td><td>Active scraping flag</td></tr>
+        </table>
+      </div>
+
+      <!-- raw_posts -->
+      <div class="schema-table l1">
+        <div class="table-header">📝 raw_posts</div>
+        <table>
+          <tr><th>Column</th><th>Type</th><th>Description</th></tr>
+          <tr><td class="pk">id</td><td>INTEGER PK</td><td>Auto-increment</td></tr>
+          <tr><td class="fk">source_id</td><td>FK → sources</td><td>Source channel</td></tr>
+          <tr><td>platform</td><td>ENUM</td><td>Platform enum</td></tr>
+          <tr><td>external_id</td><td>VARCHAR(255)</td><td>Platform post ID (dedup)</td></tr>
+          <tr><td>text</td><td>TEXT</td><td>Original post text</td></tr>
+          <tr><td>text_clean</td><td>TEXT</td><td>Cleaned / normalized text</td></tr>
+          <tr><td>author</td><td>VARCHAR(255)</td><td>Post author</td></tr>
+          <tr><td>posted_at</td><td>DATETIME</td><td>When posted (indexed)</td></tr>
+          <tr><td>views / likes / shares</td><td>INTEGER</td><td>Engagement metrics</td></tr>
+          <tr><td>is_processed</td><td>BOOLEAN</td><td>Stock ID processing flag</td></tr>
+          <tr><td>is_stock_relevant</td><td>BOOLEAN</td><td>Contains stock mention?</td></tr>
+        </table>
+      </div>
+
+      <!-- scrape_jobs -->
+      <div class="schema-table l1">
+        <div class="table-header">🔄 scrape_jobs</div>
+        <table>
+          <tr><th>Column</th><th>Type</th><th>Description</th></tr>
+          <tr><td class="pk">id</td><td>INTEGER PK</td><td>Auto-increment</td></tr>
+          <tr><td class="fk">source_id</td><td>FK → sources</td><td>Which source was scraped</td></tr>
+          <tr><td>started_at</td><td>DATETIME</td><td>Job start time</td></tr>
+          <tr><td>completed_at</td><td>DATETIME</td><td>Job end time</td></tr>
+          <tr><td>status</td><td>VARCHAR(50)</td><td>running / completed / failed</td></tr>
+          <tr><td>posts_scraped</td><td>INTEGER</td><td>Total posts found</td></tr>
+          <tr><td>posts_new</td><td>INTEGER</td><td>New (non-duplicate) posts</td></tr>
+          <tr><td>error_message</td><td>TEXT</td><td>Error details if failed</td></tr>
+        </table>
+      </div>
+
+      <!-- stocks -->
+      <div class="schema-table l2">
+        <div class="table-header">🏢 stocks</div>
+        <table>
+          <tr><th>Column</th><th>Type</th><th>Description</th></tr>
+          <tr><td class="pk">id</td><td>INTEGER PK</td><td>Auto-increment</td></tr>
+          <tr><td>symbol</td><td>VARCHAR(50)</td><td>NSE symbol (RELIANCE, TCS…)</td></tr>
+          <tr><td>name</td><td>VARCHAR(255)</td><td>Full company name</td></tr>
+          <tr><td>isin</td><td>VARCHAR(20)</td><td>ISIN number</td></tr>
+          <tr><td>exchange</td><td>VARCHAR(10)</td><td>NSE or BSE</td></tr>
+          <tr><td>sector</td><td>VARCHAR(100)</td><td>Industry sector</td></tr>
+          <tr><td>market_cap</td><td>VARCHAR(20)</td><td>large / mid / small</td></tr>
+          <tr><td>aliases</td><td>JSON</td><td>["RIL", "Reliance", "Jio parent"]</td></tr>
+        </table>
+      </div>
+
+      <!-- stock_mentions -->
+      <div class="schema-table l2">
+        <div class="table-header">💬 stock_mentions</div>
+        <table>
+          <tr><th>Column</th><th>Type</th><th>Description</th></tr>
+          <tr><td class="pk">id</td><td>INTEGER PK</td><td>Auto-increment</td></tr>
+          <tr><td class="fk">raw_post_id</td><td>FK → raw_posts</td><td>Source post</td></tr>
+          <tr><td class="fk">stock_id</td><td>FK → stocks</td><td>Matched stock</td></tr>
+          <tr><td>matched_text</td><td>VARCHAR(255)</td><td>Text that matched</td></tr>
+          <tr><td>match_method</td><td>VARCHAR(50)</td><td>symbol / alias / name</td></tr>
+          <tr><td>confidence</td><td>FLOAT</td><td>Match confidence 0–1</td></tr>
+          <tr><td>sentiment_score</td><td>FLOAT</td><td>-1.0 (bearish) to +1.0 (bullish)</td></tr>
+          <tr><td>sentiment_label</td><td>ENUM</td><td>very_bullish → very_bearish</td></tr>
+          <tr><td>target_price</td><td>FLOAT</td><td>Mentioned target price</td></tr>
+          <tr><td>stop_loss</td><td>FLOAT</td><td>Mentioned stop loss</td></tr>
+          <tr><td>action_suggested</td><td>VARCHAR(50)</td><td>buy / sell / hold / watch</td></tr>
+          <tr><td>time_horizon</td><td>VARCHAR(50)</td><td>intraday / swing / positional</td></tr>
+        </table>
+      </div>
+
+      <!-- stock_signals -->
+      <div class="schema-table l2">
+        <div class="table-header">📈 stock_signals</div>
+        <table>
+          <tr><th>Column</th><th>Type</th><th>Description</th></tr>
+          <tr><td class="pk">id</td><td>INTEGER PK</td><td>Auto-increment</td></tr>
+          <tr><td class="fk">stock_id</td><td>FK → stocks</td><td>Which stock</td></tr>
+          <tr><td>window_start / end</td><td>DATETIME</td><td>Aggregation time window</td></tr>
+          <tr><td>total_mentions</td><td>INTEGER</td><td>Total mentions in window</td></tr>
+          <tr><td>avg_sentiment</td><td>FLOAT</td><td>Average sentiment score</td></tr>
+          <tr><td>bullish_count</td><td>INTEGER</td><td>Number of bullish mentions</td></tr>
+          <tr><td>bearish_count</td><td>INTEGER</td><td>Number of bearish mentions</td></tr>
+          <tr><td>signal_strength</td><td>ENUM</td><td>STRONG_BUY → STRONG_SELL</td></tr>
+          <tr><td>confidence</td><td>FLOAT</td><td>Signal confidence 0–1</td></tr>
+          <tr><td>predicted_direction</td><td>VARCHAR(10)</td><td>up / down / flat</td></tr>
+          <tr><td>llm_reasoning</td><td>TEXT</td><td>LLM's explanation</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <br><br>
+    <h3 style="color: #e2e8f0; margin-bottom: 1rem;">Why SQLite + ChromaDB (Hybrid)?</h3>
+    <table class="compare-table">
+      <thead>
+        <tr>
+          <th>Use Case</th>
+          <th>SQLite</th>
+          <th>ChromaDB</th>
+          <th>Winner</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>"Show all RELIANCE mentions from last 7 days"</td>
+          <td class="yes">✅ Fast indexed query</td>
+          <td class="no">✗ Not designed for this</td>
+          <td class="yes">SQLite</td>
+        </tr>
+        <tr>
+          <td>"What are people saying about banking sector?"</td>
+          <td class="no">✗ No semantic search</td>
+          <td class="yes">✅ Embedding similarity</td>
+          <td class="yes">ChromaDB</td>
+        </tr>
+        <tr>
+          <td>Deduplication by post ID</td>
+          <td class="yes">✅ Unique constraints</td>
+          <td class="no">✗ Manual</td>
+          <td class="yes">SQLite</td>
+        </tr>
+        <tr>
+          <td>Aggregated signals per stock</td>
+          <td class="yes">✅ SQL GROUP BY</td>
+          <td class="no">✗ Not suitable</td>
+          <td class="yes">SQLite</td>
+        </tr>
+        <tr>
+          <td>Finding similar posts to a query</td>
+          <td class="no">✗ Only exact match</td>
+          <td class="yes">✅ Semantic match</td>
+          <td class="yes">ChromaDB</td>
+        </tr>
+        <tr>
+          <td>Structured filters (date, platform)</td>
+          <td class="yes">✅ Indexed columns</td>
+          <td class="partial">⚠ Limited metadata</td>
+          <td class="yes">SQLite</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ═══════════════ TESTING & CI ═══════════════ -->
+<section id="testing">
+  <div class="container">
+    <h2 class="section-title">Testing &amp; CI Pipeline</h2>
+    <p class="section-sub">136 test cases across 6 test files with 75% code coverage. Automated via GitHub Actions.</p>
+
+    <!-- ── Test Summary ── -->
+    <h3 style="color:#38bdf8; margin-bottom:1rem;">🧪 Test Suite Summary</h3>
+    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap:1rem; margin-bottom:2.5rem;">
+      <div class="card" style="text-align:center;">
+        <div style="font-size:2.5rem; font-weight:700; color:#22c55e;">136</div>
+        <div style="color:#94a3b8;">Total Tests</div>
+      </div>
+      <div class="card" style="text-align:center;">
+        <div style="font-size:2.5rem; font-weight:700; color:#22c55e;">6</div>
+        <div style="color:#94a3b8;">Test Files</div>
+      </div>
+      <div class="card" style="text-align:center;">
+        <div style="font-size:2.5rem; font-weight:700; color:#22c55e;">75%</div>
+        <div style="color:#94a3b8;">Coverage</div>
+      </div>
+      <div class="card" style="text-align:center;">
+        <div style="font-size:2.5rem; font-weight:700; color:#22c55e;">0</div>
+        <div style="color:#94a3b8;">Failures</div>
+      </div>
+    </div>
+
+    <!-- ── Coverage per Module ── -->
+    <h3 style="color:#38bdf8; margin-bottom:1rem;">📊 Per-Module Coverage</h3>
+    <div style="overflow-x:auto; margin-bottom:2.5rem;">
+      <table>
+        <thead>
+          <tr>
+            <th>Module</th>
+            <th>Statements</th>
+            <th>Missed</th>
+            <th>Coverage</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>database.py</code></td><td>318</td><td>11</td><td>97%</td><td>🟢 Excellent</td></tr>
+          <tr><td><code>sentiment.py</code></td><td>125</td><td>6</td><td>95%</td><td>🟢 Excellent</td></tr>
+          <tr><td><code>stock_identifier.py</code></td><td>129</td><td>13</td><td>90%</td><td>🟢 Excellent</td></tr>
+          <tr><td><code>vector_store.py</code></td><td>74</td><td>9</td><td>88%</td><td>🟢 Good</td></tr>
+          <tr><td><code>ingestion.py</code></td><td>166</td><td>50</td><td>70%</td><td>🟡 Adequate</td></tr>
+          <tr><td><code>rag_pipeline.py</code></td><td>157</td><td>157</td><td>0%</td><td>🔴 Needs API keys</td></tr>
+          <tr style="font-weight:700; background:rgba(56,189,248,0.08);"><td>TOTAL</td><td>970</td><td>246</td><td>75%</td><td>🟢 ≥ 70% threshold</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- ── Test Case Catalog ── -->
+    <h3 style="color:#38bdf8; margin-bottom:1rem;">📋 Test Case Catalog</h3>
+
+    <!-- Database Tests -->
+    <div class="card" style="margin-bottom:1rem;">
+      <h4 style="color:#a78bfa; margin-bottom:0.5rem;">test_database.py — 28 tests</h4>
+      <table style="font-size:0.85rem;">
+        <thead><tr><th>ID</th><th>Test Class</th><th>Description</th><th>#</th></tr></thead>
+        <tbody>
+          <tr><td>TC-DB-01</td><td>TestDatabaseCreation</td><td>File creation, 6 tables exist, empty stats return zeros</td><td>3</td></tr>
+          <tr><td>TC-DB-02</td><td>TestSourceOperations</td><td>Create source, upsert dedup, cross-platform isolation</td><td>3</td></tr>
+          <tr><td>TC-DB-03</td><td>TestRawPostOperations</td><td>Insert post, dedup returns None, unprocessed query, mark processed</td><td>4</td></tr>
+          <tr><td>TC-DB-04</td><td>TestBulkInsert</td><td>Bulk counts verified, partial duplicates handled</td><td>2</td></tr>
+          <tr><td>TC-DB-05</td><td>TestStockOperations</td><td>Upsert stock, idempotent check, search symbol/name, get_all list</td><td>4</td></tr>
+          <tr><td>TC-DB-06</td><td>TestStockMentionOperations</td><td>Insert mention, dedup check, get_mentions_for_stock</td><td>3</td></tr>
+          <tr><td>TC-DB-07</td><td>TestStockSignalOperations</td><td>Insert signal, get_latest retrieval</td><td>2</td></tr>
+          <tr><td>TC-DB-08</td><td>TestScrapeJobLifecycle</td><td>Create + complete job, failure recording</td><td>2</td></tr>
+          <tr><td>TC-DB-09</td><td>TestStats</td><td>Stats after inserts return accurate counts</td><td>3</td></tr>
+          <tr><td>TC-DB-10</td><td>TestRelationships</td><td>ORM relationships — Source→Posts, Post→Source</td><td>2</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Stock Identifier Tests -->
+    <div class="card" style="margin-bottom:1rem;">
+      <h4 style="color:#a78bfa; margin-bottom:0.5rem;">test_stock_identifier.py — 28 tests</h4>
+      <table style="font-size:0.85rem;">
+        <thead><tr><th>ID</th><th>Test Class</th><th>Description</th><th>#</th></tr></thead>
+        <tbody>
+          <tr><td>TC-SI-01</td><td>TestExactSymbolMatch</td><td>Single symbol, case-insensitive, word boundary, index symbols</td><td>3</td></tr>
+          <tr><td>TC-SI-02</td><td>TestAliasMatch</td><td>SBI→SBIN, RIL→RELIANCE, Airtel→BHARTIARTL, short alias skip</td><td>4</td></tr>
+          <tr><td>TC-SI-03</td><td>TestCompanyNameMatch</td><td>Full company name → correct symbol mapping</td><td>1</td></tr>
+          <tr><td>TC-SI-04</td><td>TestMultiStockIdentification</td><td>3 stocks from single text, no duplicates</td><td>2</td></tr>
+          <tr><td>TC-SI-05</td><td>TestFalsePositiveAvoidance</td><td>Plain English ignored, empty text handled</td><td>2</td></tr>
+          <tr><td>TC-SI-06</td><td>TestTargetPriceExtraction</td><td>5 parametrized regex patterns (target ₹X / Rs X / X target)</td><td>5</td></tr>
+          <tr><td>TC-SI-07</td><td>TestStopLossExtraction</td><td>4 parametrized patterns (SL, stop loss, stoploss)</td><td>4</td></tr>
+          <tr><td>TC-SI-08</td><td>TestActionExtraction</td><td>Buy / sell / long / short / accumulate keywords</td><td>1</td></tr>
+          <tr><td>TC-SI-09</td><td>TestTimeframeExtraction</td><td>Intraday, swing, positional, short_term detection</td><td>1</td></tr>
+          <tr><td>TC-SI-10</td><td>TestAnalysisTypeDetection</td><td>Technical vs fundamental vs sentiment classification</td><td>1</td></tr>
+          <tr><td>TC-SI-11</td><td>TestProcessUnprocessed</td><td>Pipeline test + re-processing idempotency</td><td>2</td></tr>
+          <tr><td>TC-SI-12</td><td>TestEdgeCases</td><td>M&amp;M special chars, combined call, stock master ≥ 60 entries</td><td>2</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Sentiment Tests -->
+    <div class="card" style="margin-bottom:1rem;">
+      <h4 style="color:#a78bfa; margin-bottom:0.5rem;">test_sentiment.py — 28 tests</h4>
+      <table style="font-size:0.85rem;">
+        <thead><tr><th>ID</th><th>Test Class</th><th>Description</th><th>#</th></tr></thead>
+        <tbody>
+          <tr><td>TC-SA-01</td><td>TestBullishSentiment</td><td>Bullish keywords → positive score &gt; 0</td><td>3</td></tr>
+          <tr><td>TC-SA-02</td><td>TestBearishSentiment</td><td>Bearish keywords → negative score &lt; 0</td><td>3</td></tr>
+          <tr><td>TC-SA-03</td><td>TestNeutralSentiment</td><td>Neutral/empty text → score near 0</td><td>3</td></tr>
+          <tr><td>TC-SA-04</td><td>TestNegation</td><td>"not bullish" → bearish flip, "not bearish" → bullish flip</td><td>2</td></tr>
+          <tr><td>TC-SA-05</td><td>TestIndianMarketSlang</td><td>Upper/lower circuit, FII buying/selling, operator activity</td><td>5</td></tr>
+          <tr><td>TC-SA-06</td><td>TestScoreRange</td><td>4 parametrized bounds checks (−1 ≤ score ≤ 1)</td><td>4</td></tr>
+          <tr><td>TC-SA-07</td><td>TestConfidenceScaling</td><td>Low vs high signal count → confidence difference</td><td>2</td></tr>
+          <tr><td>TC-SA-08</td><td>TestEdgeCases</td><td>Empty, None, numbers-only, word list sizes</td><td>2</td></tr>
+          <tr><td>TC-SA-09</td><td>TestAnalyzeMentions</td><td>DB integration — analyze from stored mentions</td><td>1</td></tr>
+          <tr><td>TC-SA-10</td><td>TestSignalGeneration</td><td>generate_signals(), strong buy/sell/hold classification</td><td>3</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Ingestion Tests -->
+    <div class="card" style="margin-bottom:1rem;">
+      <h4 style="color:#a78bfa; margin-bottom:0.5rem;">test_ingestion.py — 20 tests</h4>
+      <table style="font-size:0.85rem;">
+        <thead><tr><th>ID</th><th>Test Class</th><th>Description</th><th>#</th></tr></thead>
+        <tbody>
+          <tr><td>TC-IG-01</td><td>TestTelegramNormalization</td><td>All fields mapped, text cleaned, date parsed, missing fields</td><td>4</td></tr>
+          <tr><td>TC-IG-02</td><td>TestXNormalization</td><td>All fields + camelCase keys (favoriteCount, retweetCount, viewCount)</td><td>2</td></tr>
+          <tr><td>TC-IG-03</td><td>TestLinkedInNormalization</td><td>All fields, author name handles dict &amp; string formats</td><td>2</td></tr>
+          <tr><td>TC-IG-04</td><td>TestExternalIdGeneration</td><td>Platform ID, tweet_id, fallback hash, deterministic</td><td>4</td></tr>
+          <tr><td>TC-IG-05</td><td>TestTextCleaning</td><td>URL removal, whitespace normalization, None/empty</td><td>3</td></tr>
+          <tr><td>TC-IG-06</td><td>TestCSVIngestion</td><td>Telegram &amp; X CSV files ingested to DB</td><td>2</td></tr>
+          <tr><td>TC-IG-07</td><td>TestJSONIngestion</td><td>Telegram JSON records ingested</td><td>1</td></tr>
+          <tr><td>TC-IG-08</td><td>TestAutoDiscovery</td><td>Auto-discover files → files_processed / total_inserted counts</td><td>2</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Vector Store Tests -->
+    <div class="card" style="margin-bottom:1rem;">
+      <h4 style="color:#a78bfa; margin-bottom:0.5rem;">test_vector_store.py — 14 tests</h4>
+      <table style="font-size:0.85rem;">
+        <thead><tr><th>ID</th><th>Test Class</th><th>Description</th><th>#</th></tr></thead>
+        <tbody>
+          <tr><td>TC-VS-01</td><td>TestCollectionCreation</td><td>Collection exists, starts empty</td><td>2</td></tr>
+          <tr><td>TC-VS-02</td><td>TestAddPosts</td><td>Add posts, upsert dedup, empty list handling</td><td>3</td></tr>
+          <tr><td>TC-VS-03</td><td>TestSemanticSearch</td><td>Returns results, banking query relevance, result schema</td><td>3</td></tr>
+          <tr><td>TC-VS-04</td><td>TestPlatformFiltering</td><td>Filter results by platform metadata</td><td>1</td></tr>
+          <tr><td>TC-VS-05</td><td>TestShortTextSkipping</td><td>Skips short text &amp; missing IDs gracefully</td><td>2</td></tr>
+          <tr><td>TC-VS-06</td><td>TestSyncFromDB</td><td>SQLite → ChromaDB synchronization</td><td>3</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Integration Tests -->
+    <div class="card" style="margin-bottom:1rem;">
+      <h4 style="color:#a78bfa; margin-bottom:0.5rem;">test_integration.py — 18 tests</h4>
+      <table style="font-size:0.85rem;">
+        <thead><tr><th>ID</th><th>Test Class</th><th>Description</th><th>#</th></tr></thead>
+        <tbody>
+          <tr><td>TC-INT-01</td><td>TestFullPipeline</td><td>Ingest → process → sentiment → signals, non-stock filtering</td><td>6</td></tr>
+          <tr><td>TC-INT-02</td><td>TestMultiPlatform</td><td>Multi-platform sources coexist correctly</td><td>4</td></tr>
+          <tr><td>TC-INT-03</td><td>TestDedupAcrossRuns</td><td>Idempotent re-ingestion, no duplicate rows</td><td>4</td></tr>
+          <tr><td>TC-INT-04</td><td>TestStatsConsistency</td><td>processed == total, relevant ≤ processed</td><td>4</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- ── CI Pipeline ── -->
+    <h3 style="color:#38bdf8; margin-top:2rem; margin-bottom:1rem;">⚙️ CI Pipeline (GitHub Actions)</h3>
+    <div class="card">
+      <p style="color:#94a3b8; margin-bottom:1rem;">
+        The CI workflow runs on every push to <code>main</code>/<code>develop</code> and on pull requests.
+        Config: <code>.github/workflows/ci.yml</code>
+      </p>
+
+      <table style="font-size:0.85rem;">
+        <thead><tr><th>Stage</th><th>Job</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td><strong>Lint</strong></td><td>flake8 static analysis on <code>stock_rag/</code> (max-line 120, ignore E501/W503/E402)</td></tr>
+          <tr><td>2</td><td><strong>Test</strong></td><td>pytest across Python 3.11 / 3.12 / 3.13 + Windows matrix. Coverage XML &amp; JUnit XML artifacts.</td></tr>
+          <tr><td>3</td><td><strong>Coverage Gate</strong></td><td>Fails build if total coverage drops below <strong>70%</strong></td></tr>
+          <tr><td>4</td><td><strong>Badge</strong></td><td>Coverage summary on <code>main</code> branch merges</td></tr>
+        </tbody>
+      </table>
+
+      <h4 style="color:#a78bfa; margin-top:1.5rem; margin-bottom:0.5rem;">Running Tests Locally</h4>
+      <pre style="background:#0f172a; padding:1rem; border-radius:8px; overflow-x:auto; font-size:0.85rem;"><code># Install test dependencies
+pip install pytest pytest-cov
+
+# Run full suite
+python -m pytest tests/ -v --tb=short
+
+# Run with coverage
+python -m pytest tests/ --cov=stock_rag --cov-report=term-missing
+
+# Run only fast tests (skip slow-marked)
+python -m pytest tests/ -m "not slow"
+
+# Run a single test file
+python -m pytest tests/test_database.py -v
+
+# Run a specific test class
+python -m pytest tests/test_sentiment.py::TestNegation -v</code></pre>
+    </div>
+
+  </div>
+</section>
+
+<!-- ═══════════════ USAGE ═══════════════ -->
+<section id="usage">
+  <div class="container">
+    <h2 class="section-title">Usage &amp; CLI Commands</h2>
+    <p class="section-sub">All commands available via <code>python -m stock_rag</code>.</p>
+
+    <div class="card-grid">
+      <div class="card" style="grid-column: 1 / -1;">
+        <h3>🚀 Quick Start</h3>
+        <div class="code-block">
+<span class="comment"># 1. Install dependencies</span>
+<span class="cmd">pip install</span> <span class="flag">-r</span> stock_rag/requirements.txt
+
+<span class="comment"># 2. Configure environment</span>
+<span class="cmd">cp</span> stock_rag/.env.example <span class="arg">.env</span>
+<span class="comment"># Edit .env with your APIFY_API_TOKEN and GEMINI_API_KEY</span>
+
+<span class="comment"># 3. Ingest existing scraped data (auto-discovers CSV/JSON files)</span>
+<span class="cmd">python -m stock_rag</span> <span class="flag">ingest</span> <span class="flag">--dir</span> <span class="arg">.</span>
+
+<span class="comment"># 4. Process (identify stocks + run sentiment analysis)</span>
+<span class="cmd">python -m stock_rag</span> <span class="flag">process</span>
+
+<span class="comment"># 5. Get prediction for a stock</span>
+<span class="cmd">python -m stock_rag</span> <span class="flag">predict</span> <span class="arg">RELIANCE</span>
+<span class="cmd">python -m stock_rag</span> <span class="flag">predict</span> <span class="arg">TCS</span> <span class="flag">--lookback</span> <span class="arg">48</span>
+
+<span class="comment"># 6. Ask questions via RAG</span>
+<span class="cmd">python -m stock_rag</span> <span class="flag">query</span> <span class="arg">"What is the sentiment on IT stocks?"</span>
+
+<span class="comment"># 7. View database stats</span>
+<span class="cmd">python -m stock_rag</span> <span class="flag">stats</span>
+
+<span class="comment"># 8. Run full pipeline (ingest + process in one go)</span>
+<span class="cmd">python -m stock_rag</span>
+        </div>
+      </div>
+    </div>
+
+    <br>
+    <h3 style="color: #e2e8f0; margin-bottom: 1rem;">All CLI Commands</h3>
+    <table class="compare-table">
+      <thead><tr><th>Command</th><th>Description</th><th>Key Options</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code style="color:#38bdf8">python -m stock_rag</code></td>
+          <td>Run full pipeline (ingest + process)</td>
+          <td><code>--db</code> database path</td>
+        </tr>
+        <tr>
+          <td><code style="color:#38bdf8">python -m stock_rag ingest</code></td>
+          <td>Ingest data from CSV/JSON files</td>
+          <td><code>--dir</code> directory to scan</td>
+        </tr>
+        <tr>
+          <td><code style="color:#38bdf8">python -m stock_rag process</code></td>
+          <td>Identify stocks + sentiment analysis</td>
+          <td><code>--batch</code> size, <code>--window</code> hours</td>
+        </tr>
+        <tr>
+          <td><code style="color:#38bdf8">python -m stock_rag predict SYMBOL</code></td>
+          <td>Generate AI prediction for a stock</td>
+          <td><code>--lookback</code> hours, <code>--llm</code> provider</td>
+        </tr>
+        <tr>
+          <td><code style="color:#38bdf8">python -m stock_rag query "..."</code></td>
+          <td>Ask any question via RAG</td>
+          <td><code>--max-posts</code>, <code>--llm</code> provider</td>
+        </tr>
+        <tr>
+          <td><code style="color:#38bdf8">python -m stock_rag stats</code></td>
+          <td>Show database &amp; vector store statistics</td>
+          <td><code>--db</code> path</td>
+        </tr>
+        <tr>
+          <td><code style="color:#38bdf8">python -m stock_rag scrape PLATFORM HANDLE</code></td>
+          <td>Live scrape via Apify API</td>
+          <td><code>--max-posts</code></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <br><br>
+    <h3 style="color: #e2e8f0; margin-bottom: 1rem;">Prediction Output Format (JSON)</h3>
+    <div class="code-block" style="color:#94a3b8;">
+{
+  <span style="color:#38bdf8">"prediction"</span>: <span style="color:#4ade80">"Bullish"</span>,
+  <span style="color:#38bdf8">"confidence"</span>: <span style="color:#4ade80">"High"</span>,
+  <span style="color:#38bdf8">"confidence_score"</span>: <span style="color:#fbbf24">0.82</span>,
+  <span style="color:#38bdf8">"short_term_outlook"</span>: <span style="color:#4ade80">"Strong momentum, breakout above resistance confirmed"</span>,
+  <span style="color:#38bdf8">"medium_term_outlook"</span>: <span style="color:#4ade80">"Positive with potential consolidation near 2900"</span>,
+  <span style="color:#38bdf8">"suggested_action"</span>: <span style="color:#4ade80">"Buy"</span>,
+  <span style="color:#38bdf8">"target_price_range"</span>: { <span style="color:#a78bfa">"low"</span>: <span style="color:#fbbf24">2750</span>, <span style="color:#a78bfa">"high"</span>: <span style="color:#fbbf24">2950</span> },
+  <span style="color:#38bdf8">"stop_loss_suggested"</span>: <span style="color:#fbbf24">2580</span>,
+  <span style="color:#38bdf8">"key_factors"</span>: [<span style="color:#4ade80">"Breakout above 2700 resistance"</span>, <span style="color:#4ade80">"High volume accumulation"</span>],
+  <span style="color:#38bdf8">"risk_factors"</span>: [<span style="color:#f87171">"Sector rotation risk"</span>, <span style="color:#f87171">"Global market uncertainty"</span>],
+  <span style="color:#38bdf8">"data_quality"</span>: <span style="color:#4ade80">"Sufficient"</span>,
+  <span style="color:#38bdf8">"stock"</span>: { <span style="color:#a78bfa">"symbol"</span>: <span style="color:#4ade80">"RELIANCE"</span>, <span style="color:#a78bfa">"sector"</span>: <span style="color:#4ade80">"Oil &amp; Gas"</span> },
+  <span style="color:#38bdf8">"data_summary"</span>: { <span style="color:#a78bfa">"posts_analyzed"</span>: <span style="color:#fbbf24">18</span>, <span style="color:#a78bfa">"mentions_found"</span>: <span style="color:#fbbf24">24</span> }
+}
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ CONFIG ═══════════════ -->
+<section id="config">
+  <div class="container">
+    <h2 class="section-title">Configuration &amp; Environment</h2>
+    <p class="section-sub">Environment variables and file structure.</p>
+
+    <h3 style="color: #e2e8f0; margin-bottom: 1rem;">Environment Variables (.env)</h3>
+    <table class="env-table">
+      <thead><tr><th>Variable</th><th>Description</th><th>Default</th></tr></thead>
+      <tbody>
+        <tr><td>APIFY_API_TOKEN</td><td>Apify API token for scraping</td><td>(required for scraping)</td></tr>
+        <tr><td>STOCKRAG_LLM_PROVIDER</td><td>LLM provider to use</td><td>gemini</td></tr>
+        <tr><td>GEMINI_API_KEY</td><td>Google Gemini API key</td><td>(required if using gemini)</td></tr>
+        <tr><td>OPENAI_API_KEY</td><td>OpenAI API key</td><td>(required if using openai)</td></tr>
+        <tr><td>OLLAMA_MODEL</td><td>Ollama model name</td><td>llama3.1</td></tr>
+        <tr><td>STOCKRAG_DB_PATH</td><td>SQLite database file path</td><td>stock_rag.db</td></tr>
+        <tr><td>STOCKRAG_VECTOR_DIR</td><td>ChromaDB persistence directory</td><td>./chroma_db</td></tr>
+      </tbody>
+    </table>
+
+    <br><br>
+    <h3 style="color: #e2e8f0; margin-bottom: 1rem;">LLM Providers Supported</h3>
+    <div class="card-grid" style="grid-template-columns: repeat(3, 1fr);">
+      <div class="card">
+        <h3>🌐 Google Gemini</h3>
+        <p>Default provider. Uses <code>gemini-2.0-flash</code> model.</p>
+        <ul>
+          <li>Fast and cost-effective</li>
+          <li>Good structured JSON output</li>
+          <li>Free tier available</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>🧠 OpenAI GPT-4</h3>
+        <p>Premium option via <code>gpt-4o-mini</code> model.</p>
+        <ul>
+          <li>Best reasoning quality</li>
+          <li>Superior JSON formatting</li>
+          <li>Pay-per-use pricing</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>🏠 Ollama (Local)</h3>
+        <p>Free, private, local LLM via <code>llama3.1</code>.</p>
+        <ul>
+          <li>Completely free &amp; private</li>
+          <li>No API keys needed</li>
+          <li>Requires local GPU/CPU</li>
+        </ul>
+      </div>
+    </div>
+
+    <br><br>
+    <h3 style="color: #e2e8f0; margin-bottom: 1rem;">File Structure</h3>
+    <div class="file-tree">
+<span class="folder">stock_rag/</span>
+├── <span class="file">__init__.py</span>              <span class="desc"># Package init + version</span>
+├── <span class="file">__main__.py</span>              <span class="desc"># CLI entrypoint &amp; orchestrator (cmd_ingest, cmd_process, cmd_predict…)</span>
+├── <span class="file">database.py</span>              <span class="desc"># SQLAlchemy ORM models + Database class (6 tables, all CRUD ops)</span>
+├── <span class="file">ingestion.py</span>             <span class="desc"># Data ingestion pipeline (normalizers for Telegram, X, LinkedIn)</span>
+├── <span class="file">stock_identifier.py</span>      <span class="desc"># Stock identification engine (63+ NSE/BSE stocks, regex extraction)</span>
+├── <span class="file">sentiment.py</span>             <span class="desc"># Sentiment analyzer (rule-based) + signal aggregator</span>
+├── <span class="file">vector_store.py</span>          <span class="desc"># ChromaDB vector store (embed, search, sync from SQLite)</span>
+├── <span class="file">rag_pipeline.py</span>          <span class="desc"># RAG pipeline + LLM providers (Gemini, OpenAI, Ollama)</span>
+├── <span class="file">requirements.txt</span>         <span class="desc"># Python dependencies</span>
+├── <span class="file">.env.example</span>             <span class="desc"># Environment config template</span>
+└── <span class="file">README.md</span>                <span class="desc"># Documentation</span>
+    </div>
+
+    <br><br>
+    <h3 style="color: #e2e8f0; margin-bottom: 1rem;">Extending the System</h3>
+    <div class="card-grid">
+      <div class="card">
+        <h3>➕ Add a New Platform</h3>
+        <ul>
+          <li>Add <code>Platform.REDDIT</code> to enum in <code>database.py</code></li>
+          <li>Add <code>normalize_reddit_post()</code> in <code>ingestion.py</code></li>
+          <li>Register in <code>NORMALIZERS</code> dict</li>
+          <li>Add file detection pattern in <code>ingest_existing_files()</code></li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>➕ Add More Stocks</h3>
+        <ul>
+          <li>Edit <code>STOCK_MASTER</code> list in <code>stock_identifier.py</code></li>
+          <li>Or download NSE CSV and call <code>load_stock_master_from_nse_csv()</code></li>
+          <li>Stocks are auto-seeded on first pipeline run</li>
+          <li>Add aliases for common nicknames / abbreviations</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>➕ Add a New LLM</h3>
+        <ul>
+          <li>Subclass <code>LLMProvider</code> in <code>rag_pipeline.py</code></li>
+          <li>Implement <code>generate(prompt, system_prompt)</code> method</li>
+          <li>Register in <code>get_llm()</code> in <code>__main__.py</code></li>
+          <li>Set <code>STOCKRAG_LLM_PROVIDER=your_provider</code> in <code>.env</code></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ FOOTER ═══════════════ -->
+<footer>
+  <p>
+    StockRAG v0.1.0 &nbsp;•&nbsp; Built with Python, SQLAlchemy, ChromaDB &nbsp;•&nbsp;
+    136 tests &nbsp;•&nbsp; 75% coverage &nbsp;•&nbsp;
+    Design inspired by <a href="https://nrsyed.com/2021/11/26/asynchronously-web-scraping-a-proboards-forum-with-python-part-1/">nrsyed's ProBoards scraper</a>
+  </p>
+  <p style="margin-top:0.5rem; color:#334155;">
+    ⚠ AI-generated stock predictions are NOT financial advice. Always do your own research.
+  </p>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,32 @@
+# Telegram session files (contain auth tokens - NEVER commit)
+.telegram_sessions/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+
+# Database
+*.db
+
+# ChromaDB
+chroma_db/
+
+# Environment
+.env
+
+# IDE
+.vscode/
+
+# Build / cache
+.pytest_cache/
+.coverage
+.vite/
+
+# Generated images
+*.png
+
+# Binary / large files
+*.xlsx
+*.zip

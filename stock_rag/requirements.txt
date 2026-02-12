@@ -1,0 +1,18 @@
+# StockRAG - RAG-based Stock Market Prediction
+# Core
+sqlalchemy>=2.0
+pandas>=1.0
+python-dotenv>=1.0
+requests>=2.28
+
+# Vector database
+chromadb>=0.4.0
+
+# LLM providers (install the one you need)
+google-genai>=1.0        # For Gemini
+# openai>=1.0            # For OpenAI GPT-4
+
+# Existing project deps
+openpyxl>=3.0
+apify-client>=1.6.0
+truststore>=0.9.0

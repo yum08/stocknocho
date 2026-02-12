@@ -1,0 +1,5 @@
+{
+  "name": "SocialPulse AI",
+  "description": "A comprehensive social media analysis dashboard that simulates crawling and scraping insights. It uses Gemini to analyze sentiment, hidden patterns, and summarize long threads from platforms like Reddit, Telegram, and YouTube.",
+  "requestFramePermissions": []
+}

@@ -1,0 +1,7 @@
+L1 Core2 Channel Estimation Even Slot Max Profile in cycles is 5993 and microsec is 4
+L1 Core2 Channel Estimation Even Slot Start Time in cycles is 6489834542323 and microsec is 5408195451
+L1 Core2 Channel Estimation Even Slot End Time in cycles is 6489834548308 and microsec is 5408195456
+CommonHandStart SymIntStart 3784196625
+SymIntStart 3784238270
+SymIntEnd 3784239923
+SymTickStart 3784240428

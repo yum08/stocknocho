@@ -1,0 +1,1352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StockRAG — Dashboard</title>
+<style>
+/* ── Reset & Base ── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0f172a;--bg2:#1e293b;--bg3:#334155;
+  --fg:#e2e8f0;--fg2:#94a3b8;--fg3:#64748b;
+  --accent:#38bdf8;--green:#22c55e;--red:#ef4444;--amber:#f59e0b;
+  --purple:#a78bfa;--radius:10px;
+}
+html{font-size:15px;scroll-behavior:smooth}
+body{background:var(--bg);color:var(--fg);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;display:flex;flex-direction:column}
+a{color:var(--accent);text-decoration:none}
+button{cursor:pointer;font-family:inherit;font-size:.875rem}
+
+/* ── Top Nav ── */
+.topnav{background:var(--bg2);border-bottom:1px solid var(--bg3);padding:.65rem 1.5rem;display:flex;align-items:center;gap:1.5rem;position:sticky;top:0;z-index:100}
+.topnav .logo{font-weight:700;font-size:1.15rem;color:var(--accent);display:flex;align-items:center;gap:.4rem}
+.topnav .nav-links{display:flex;gap:.15rem}
+.topnav .nav-links button{background:none;border:none;color:var(--fg2);padding:.4rem .85rem;border-radius:6px;transition:.15s}
+.topnav .nav-links button:hover,.topnav .nav-links button.active{background:var(--bg3);color:var(--fg)}
+.topnav .status{margin-left:auto;font-size:.8rem;color:var(--fg3)}
+
+/* ── Layout ── */
+.container{max-width:1340px;width:100%;margin:0 auto;padding:1.2rem 1.5rem}
+
+/* ── Views ── */
+.view{display:none}
+.view.active{display:block}
+
+/* ── Cards ── */
+.card{background:var(--bg2);border:1px solid var(--bg3);border-radius:var(--radius);padding:1.25rem;margin-bottom:1rem}
+.card h3{color:var(--accent);font-size:1rem;margin-bottom:.6rem}
+
+/* ── Stat grid ── */
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:.75rem;margin-bottom:1.2rem}
+.stat-card{background:var(--bg2);border:1px solid var(--bg3);border-radius:var(--radius);padding:1rem;text-align:center}
+.stat-card .val{font-size:1.8rem;font-weight:700;color:var(--green)}
+.stat-card .lbl{font-size:.78rem;color:var(--fg3);margin-top:.2rem;text-transform:uppercase;letter-spacing:.04em}
+
+/* ── Buttons ── */
+.btn{display:inline-flex;align-items:center;gap:.35rem;padding:.5rem 1rem;border-radius:8px;font-weight:600;border:none;transition:.15s}
+.btn-primary{background:var(--accent);color:#0f172a}
+.btn-primary:hover{filter:brightness(1.15)}
+.btn-green{background:var(--green);color:#0f172a}
+.btn-amber{background:var(--amber);color:#0f172a}
+.btn-purple{background:var(--purple);color:#0f172a}
+.btn-secondary{background:var(--bg3);color:var(--fg)}
+.btn-sm{padding:.35rem .7rem;font-size:.8rem}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* ── Tables ── */
+table{width:100%;border-collapse:collapse;font-size:.85rem}
+th{text-align:left;color:var(--fg3);font-weight:600;padding:.55rem .5rem;border-bottom:1px solid var(--bg3);text-transform:uppercase;font-size:.73rem;letter-spacing:.04em}
+td{padding:.55rem .5rem;border-bottom:1px solid rgba(51,65,85,.4);vertical-align:top}
+tr:hover td{background:rgba(56,189,248,.03)}
+
+/* ── Forms ── */
+input,select,textarea{background:var(--bg);border:1px solid var(--bg3);border-radius:8px;color:var(--fg);padding:.5rem .75rem;font-family:inherit;font-size:.875rem;width:100%}
+input:focus,textarea:focus,select:focus{outline:none;border-color:var(--accent)}
+textarea{resize:vertical;min-height:80px}
+label{display:block;font-size:.78rem;color:var(--fg3);margin-bottom:.25rem;text-transform:uppercase;letter-spacing:.04em}
+.form-row{display:flex;gap:.75rem;margin-bottom:.75rem;flex-wrap:wrap}
+.form-row>*{flex:1;min-width:180px}
+
+/* ── Badges ── */
+.badge{display:inline-block;padding:.15rem .5rem;border-radius:20px;font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+.badge-green{background:rgba(34,197,94,.15);color:var(--green)}
+.badge-red{background:rgba(239,68,68,.15);color:var(--red)}
+.badge-amber{background:rgba(245,158,11,.15);color:var(--amber)}
+.badge-blue{background:rgba(56,189,248,.15);color:var(--accent)}
+.badge-purple{background:rgba(167,139,250,.15);color:var(--purple)}
+
+/* ── Toast ── */
+#toast{position:fixed;bottom:1.2rem;right:1.2rem;z-index:999;display:flex;flex-direction:column;gap:.5rem}
+.toast-msg{padding:.7rem 1.1rem;border-radius:8px;font-size:.85rem;animation:slideIn .25s;max-width:380px}
+.toast-ok{background:#166534;color:#bbf7d0;border:1px solid #22c55e}
+.toast-err{background:#7f1d1d;color:#fecaca;border:1px solid #ef4444}
+@keyframes slideIn{from{transform:translateX(60px);opacity:0}to{transform:none;opacity:1}}
+
+/* ── Prediction card ── */
+.pred-result{background:var(--bg);border:1px solid var(--bg3);border-radius:var(--radius);padding:1.25rem;margin-top:1rem}
+.pred-result h4{color:var(--accent);margin-bottom:.5rem}
+.pred-result pre{background:var(--bg2);border-radius:8px;padding:1rem;overflow-x:auto;font-size:.8rem;max-height:420px;overflow-y:auto;white-space:pre-wrap;word-break:break-word}
+
+/* ── Scrollable area ── */
+.scroll-area{max-height:600px;overflow-y:auto}
+
+/* ── Spinner ── */
+.spinner{display:inline-block;width:16px;height:16px;border:2px solid var(--fg3);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── Platform icon ── */
+.plat-icon{font-size:.8rem}
+
+/* ── Pipeline Tracker ── */
+.pipeline-flow{display:flex;align-items:center;gap:0;margin:1.2rem 0;flex-wrap:wrap;justify-content:center}
+.pipeline-stage{text-align:center;padding:.9rem .7rem;background:var(--bg2);border:1px solid var(--bg3);border-radius:var(--radius);min-width:130px;flex:1;position:relative;cursor:pointer;transition:.2s}
+.pipeline-stage:hover{border-color:var(--accent);transform:translateY(-2px)}
+.pipeline-stage .stage-icon{font-size:1.5rem;margin-bottom:.3rem}
+.pipeline-stage .stage-label{font-size:.72rem;color:var(--fg3);text-transform:uppercase;letter-spacing:.04em}
+.pipeline-stage .stage-count{font-size:1.3rem;font-weight:700;margin:.2rem 0}
+.pipeline-stage .stage-pending{font-size:.7rem;border-radius:12px;padding:.1rem .45rem;display:inline-block;margin-top:.2rem}
+.pipeline-stage.done .stage-count{color:var(--green)}
+.pipeline-stage.pending .stage-count{color:var(--amber)}
+.pipeline-stage.empty .stage-count{color:var(--fg3)}
+.pipeline-arrow{font-size:1.3rem;color:var(--fg3);padding:0 .3rem;flex:0 0 auto}
+
+/* ── Activity Log ── */
+.activity-item{display:flex;gap:.75rem;padding:.6rem 0;border-bottom:1px solid rgba(51,65,85,.3);align-items:flex-start}
+.activity-item:last-child{border-bottom:none}
+.activity-dot{width:8px;height:8px;border-radius:50%;margin-top:.35rem;flex-shrink:0}
+.activity-dot.green{background:var(--green)}
+.activity-dot.amber{background:var(--amber)}
+.activity-dot.blue{background:var(--accent)}
+.activity-dot.red{background:var(--red)}
+
+/* ── Next Steps ── */
+.next-steps{background:linear-gradient(135deg, rgba(56,189,248,.08), rgba(34,197,94,.05));border:1px solid rgba(56,189,248,.25);border-radius:var(--radius);padding:1rem 1.25rem;margin-top:.75rem}
+.next-steps h4{color:var(--accent);font-size:.9rem;margin-bottom:.5rem}
+.next-steps .step-row{display:flex;align-items:center;gap:.5rem;padding:.35rem 0;font-size:.85rem}
+.next-steps .step-num{background:var(--accent);color:#0f172a;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:700;flex-shrink:0}
+
+/* ── Responsive ── */
+@media(max-width:768px){
+  .topnav{flex-wrap:wrap;gap:.5rem}
+  .stat-grid{grid-template-columns:repeat(2,1fr)}
+  .pipeline-flow{flex-direction:column}
+  .pipeline-arrow{transform:rotate(90deg)}
+}
+</style>
+</head>
+<body>
+
+<!-- ════════ TOP NAV ════════ -->
+<nav class="topnav">
+  <div class="logo">📈 StockRAG</div>
+  <div class="nav-links">
+    <button class="active" onclick="showView('dashboard',event)">Dashboard</button>
+    <button onclick="showView('ingest',event)">Ingest</button>
+    <button onclick="showView('pipeline',event)">Pipeline</button>
+    <button onclick="showView('stocks',event)">Stocks</button>
+    <button onclick="showView('posts',event)">Posts</button>
+    <button onclick="showView('search',event)">Search</button>
+    <button onclick="showView('tools',event)">Tools</button>
+    <button onclick="showView('predict',event)">Predict</button>
+  </div>
+  <div class="status" id="dbStatus">Loading…</div>
+</nav>
+
+<div class="container">
+
+<!-- ════════════════════════════════════════════
+     DASHBOARD VIEW
+     ════════════════════════════════════════════ -->
+<div id="view-dashboard" class="view active">
+  <h2 style="margin-bottom:1rem">Dashboard</h2>
+  <div class="stat-grid" id="statsGrid">
+    <div class="stat-card"><div class="val" id="s-sources">—</div><div class="lbl">Sources</div></div>
+    <div class="stat-card"><div class="val" id="s-posts">—</div><div class="lbl">Raw Posts</div></div>
+    <div class="stat-card"><div class="val" id="s-processed">—</div><div class="lbl">Processed</div></div>
+    <div class="stat-card"><div class="val" id="s-relevant">—</div><div class="lbl">Stock Relevant</div></div>
+    <div class="stat-card"><div class="val" id="s-stocks">—</div><div class="lbl">Stocks</div></div>
+    <div class="stat-card"><div class="val" id="s-mentions">—</div><div class="lbl">Mentions</div></div>
+    <div class="stat-card"><div class="val" id="s-signals">—</div><div class="lbl">Signals</div></div>
+    <div class="stat-card"><div class="val" id="s-vectors">—</div><div class="lbl">Vectors</div></div>
+  </div>
+
+  <!-- ── Pipeline Flow Tracker ── -->
+  <div class="card">
+    <h3>📊 Pipeline Status — Data Flow</h3>
+    <p style="color:var(--fg3);font-size:.78rem;margin-bottom:.5rem">Click any stage to jump to it. Amber = there's pending work.</p>
+    <div class="pipeline-flow" id="pipelineFlow">
+      <div class="pipeline-stage empty" onclick="goNav('ingest')" id="pf-ingest">
+        <div class="stage-icon">📥</div>
+        <div class="stage-count" id="pf-ingest-n">0</div>
+        <div class="stage-label">Ingested</div>
+        <div class="stage-pending" id="pf-ingest-p"></div>
+      </div>
+      <div class="pipeline-arrow">→</div>
+      <div class="pipeline-stage empty" onclick="goNav('pipeline')" id="pf-identify">
+        <div class="stage-icon">🔍</div>
+        <div class="stage-count" id="pf-identify-n">0</div>
+        <div class="stage-label">Identified</div>
+        <div class="stage-pending" id="pf-identify-p"></div>
+      </div>
+      <div class="pipeline-arrow">→</div>
+      <div class="pipeline-stage empty" onclick="goNav('pipeline')" id="pf-sentiment">
+        <div class="stage-icon">💬</div>
+        <div class="stage-count" id="pf-sentiment-n">0</div>
+        <div class="stage-label">Sentiment</div>
+        <div class="stage-pending" id="pf-sentiment-p"></div>
+      </div>
+      <div class="pipeline-arrow">→</div>
+      <div class="pipeline-stage empty" onclick="goNav('pipeline')" id="pf-signals">
+        <div class="stage-icon">📡</div>
+        <div class="stage-count" id="pf-signals-n">0</div>
+        <div class="stage-label">Signals</div>
+        <div class="stage-pending" id="pf-signals-p"></div>
+      </div>
+      <div class="pipeline-arrow">→</div>
+      <div class="pipeline-stage empty" onclick="goNav('pipeline')" id="pf-vectors">
+        <div class="stage-icon">🧠</div>
+        <div class="stage-count" id="pf-vectors-n">0</div>
+        <div class="stage-label">Vectors</div>
+        <div class="stage-pending" id="pf-vectors-p"></div>
+      </div>
+      <div class="pipeline-arrow">→</div>
+      <div class="pipeline-stage empty" onclick="goNav('predict')" id="pf-predict">
+        <div class="stage-icon">🤖</div>
+        <div class="stage-count" style="font-size:1rem;color:var(--accent)">RAG</div>
+        <div class="stage-label">Predict</div>
+        <div class="stage-pending" id="pf-predict-p"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Quick Actions ── -->
+  <div class="card">
+    <h3>⚡ Quick Actions</h3>
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.5rem">
+      <button class="btn btn-primary" onclick="runFullPipeline()">🚀 Run Full Pipeline</button>
+      <button class="btn btn-secondary" onclick="refreshStats();refreshPipelineStatus()">🔄 Refresh Stats</button>
+      <button class="btn btn-green" onclick="goNav('ingest')">📥 Ingest Data</button>
+      <button class="btn btn-purple" onclick="goNav('predict')">🤖 Make Prediction</button>
+      <button class="btn btn-sm" style="background:var(--red);margin-left:auto" onclick="purgeAllPosts()">🗑️ Purge All Posts</button>
+    </div>
+  </div>
+
+  <!-- ── Recent Activity ── -->
+  <div class="card" id="activityCard">
+    <h3>🕑 Recent Activity</h3>
+    <div id="activityLog" style="margin-top:.5rem">
+      <p style="color:var(--fg3);font-size:.85rem">Loading…</p>
+    </div>
+  </div>
+
+  <div class="card" id="sourcesCard" style="display:none">
+    <h3>📡 Data Sources</h3>
+    <div class="scroll-area"><table><thead><tr><th>Platform</th><th>Handle</th><th>Name</th><th>Category</th><th>Reliability</th></tr></thead><tbody id="sourcesTbody"></tbody></table></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     INGEST VIEW
+     ════════════════════════════════════════════ -->
+<div id="view-ingest" class="view">
+  <h2 style="margin-bottom:1rem">Data Ingestion</h2>
+
+  <!-- Live Scrape -->
+  <div class="card" style="border-color:var(--accent)">
+    <h3>🌐 Live Scrape from Handle</h3>
+    <p style="color:var(--fg2);font-size:.85rem;margin-bottom:.75rem">
+      Enter a Twitter / Telegram / LinkedIn handle to scrape live.
+    </p>
+    <div class="form-row">
+      <div><label>Platform</label>
+        <select id="livePlatform" onchange="onPlatformChange()">
+          <option value="x">𝕏 / Twitter</option>
+          <option value="telegram">📨 Telegram</option>
+          <option value="linkedin">💼 LinkedIn</option>
+        </select>
+      </div>
+      <div><label>Handle / Username</label><input id="liveHandle" placeholder="e.g. adi408b (without @)"></div>
+      <div><label>Max Posts</label><input id="liveMax" type="number" value="200" min="1" max="50000"></div>
+    </div>
+
+    <!-- Telegram method toggle (shown only when Telegram is selected) -->
+    <div id="telegramOptions" style="display:none;margin-top:.5rem;">
+      <div style="display:flex;gap:.75rem;align-items:center;margin-bottom:.5rem">
+        <label style="margin:0;font-weight:600;font-size:.85rem">Scrape Method:</label>
+        <label style="cursor:pointer;display:flex;align-items:center;gap:.3rem;font-size:.85rem">
+          <input type="radio" name="tgMethod" value="free" checked onchange="onTgMethodChange()">
+          <span style="color:var(--green)">🆓 Free (Telethon)</span>
+        </label>
+        <label style="cursor:pointer;display:flex;align-items:center;gap:.3rem;font-size:.85rem">
+          <input type="radio" name="tgMethod" value="apify" onchange="onTgMethodChange()">
+          <span style="color:var(--amber)">💰 Apify (paid)</span>
+        </label>
+      </div>
+
+      <div id="tgFreeInfo" style="padding:.5rem;background:var(--bg);border-radius:6px;font-size:.78rem;color:var(--fg3);border-left:3px solid var(--green)">
+        ✅ <b>Free &amp; unlimited</b> — uses Telegram API via Telethon. No charges. Requires one-time auth.
+        <br><span id="tgAuthStatus">Checking auth status…</span>
+        <div style="margin-top:.5rem">
+          <label style="cursor:pointer;display:flex;align-items:center;gap:.4rem;font-size:.82rem;color:var(--fg1)">
+            <input type="checkbox" id="enableOcr">
+            <span>🔍 <b>Enable OCR</b> — extract text from images (charts, harmonic patterns, etc.)</span>
+          </label>
+          <span style="font-size:.72rem;color:var(--fg3);margin-left:1.4rem">Slower but captures stock info from image-only posts. Uses Tesseract.</span>
+        </div>
+      </div>
+
+      <div id="tgApifyInfo" style="display:none;padding:.5rem;background:var(--bg);border-radius:6px;font-size:.78rem;color:var(--fg3);border-left:3px solid var(--amber)">
+        💰 Apify pay-per-event: ~$0.39/1,000 messages. Free tier caps at 10 items.
+        <div class="form-row" style="margin-top:.5rem">
+          <div style="flex:1"><label>Budget $ (max)</label>
+            <input id="liveBudget" type="number" value="5" min="1" max="50" step="1"
+                   title="Max USD to spend on this Apify run">
+          </div>
+        </div>
+        <span id="costEstText"></span>
+      </div>
+
+      <div class="form-row" style="margin-top:.5rem">
+        <div style="flex:1"><label>Date Range</label>
+          <select id="liveDateRange">
+            <option value="">All history (no limit)</option>
+            <option value="7 days">Last 7 days</option>
+            <option value="30 days" selected>Last 30 days</option>
+            <option value="90 days">Last 90 days</option>
+            <option value="180 days">Last 6 months</option>
+            <option value="365 days">Last 1 year</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" onclick="liveScrape()" style="margin-top:.75rem">🚀 Scrape Now</button>
+    <div id="liveResult" style="margin-top:.75rem"></div>
+  </div>
+
+  <!-- Auto Discover -->
+  <div class="card">
+    <h3>🔍 Auto-Discover &amp; Ingest Local Files</h3>
+    <p style="color:var(--fg2);font-size:.85rem;margin-bottom:.75rem">Scan workspace for existing CSV/JSON files and ingest them automatically.</p>
+    <div class="form-row">
+      <div><label>Base Directory</label><input id="autoDir" value="." placeholder="."></div>
+    </div>
+    <button class="btn btn-secondary" onclick="autoIngest()">🔍 Auto Ingest</button>
+  </div>
+
+  <!-- File Ingest -->
+  <div class="card">
+    <h3>📂 Ingest Local File</h3>
+    <p style="color:var(--fg2);font-size:.85rem;margin-bottom:.75rem">Import a specific CSV or JSON file already on your disk (e.g. Apify export).</p>
+    <div class="form-row">
+      <div><label>File Path (local)</label><input id="filePath" placeholder="x_posts.json or data/linkedin_sample.csv"></div>
+      <div><label>Platform</label>
+        <select id="filePlatform">
+          <option value="telegram">📨 Telegram</option>
+          <option value="x">𝕏 Twitter</option>
+          <option value="linkedin">💼 LinkedIn</option>
+          <option value="reddit">🔴 Reddit</option>
+        </select>
+      </div>
+      <div><label>Source Label</label><input id="fileHandle" placeholder="my_channel (optional)"></div>
+    </div>
+    <button class="btn btn-secondary" onclick="ingestFile()">📥 Ingest File</button>
+  </div>
+
+  <div class="card" id="ingestResult" style="display:none">
+    <h3>Result</h3>
+    <pre id="ingestResultPre"></pre>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     PIPELINE VIEW
+     ════════════════════════════════════════════ -->
+<div id="view-pipeline" class="view">
+  <h2 style="margin-bottom:1rem">Processing Pipeline</h2>
+
+  <!-- Pipeline status bar -->
+  <div class="card" id="pipelinePendingCard" style="display:none;border-color:var(--amber)">
+    <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
+      <span style="font-size:1.1rem">⚠️</span>
+      <span id="pipelinePendingMsg" style="color:var(--amber);font-size:.88rem;font-weight:600">There is pending work in the pipeline.</span>
+      <button class="btn btn-sm btn-primary" style="margin-left:auto" onclick="runFullPipeline()">🚀 Run All Steps Now</button>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:.75rem">
+    <div class="card">
+      <h3>1️⃣ Stock Identification</h3>
+      <p style="color:var(--fg2);font-size:.82rem;margin-bottom:.5rem">Scan unprocessed posts for stock mentions.</p>
+      <div id="pipe-identify-status" style="margin-bottom:.5rem"></div>
+      <button class="btn btn-primary" onclick="runStep('identify')">▶ Identify Stocks</button>
+      <div class="step-result" id="res-identify"></div>
+    </div>
+    <div class="card">
+      <h3>2️⃣ Sentiment Analysis</h3>
+      <p style="color:var(--fg2);font-size:.82rem;margin-bottom:.5rem">Analyze sentiment on un-scored mentions.</p>
+      <div id="pipe-sentiment-status" style="margin-bottom:.5rem"></div>
+      <button class="btn btn-green" onclick="runStep('sentiment')">▶ Analyze Sentiment</button>
+      <div class="step-result" id="res-sentiment"></div>
+    </div>
+    <div class="card">
+      <h3>3️⃣ Signal Generation</h3>
+      <p style="color:var(--fg2);font-size:.82rem;margin-bottom:.5rem">Generate aggregated signals per stock.</p>
+      <div id="pipe-signals-status" style="margin-bottom:.5rem"></div>
+      <button class="btn btn-amber" onclick="runStep('signals')">▶ Generate Signals</button>
+      <div class="step-result" id="res-signals"></div>
+    </div>
+    <div class="card">
+      <h3>4️⃣ Vector Sync</h3>
+      <p style="color:var(--fg2);font-size:.82rem;margin-bottom:.5rem">Sync processed posts into ChromaDB for RAG.</p>
+      <div id="pipe-vectors-status" style="margin-bottom:.5rem"></div>
+      <button class="btn btn-purple" onclick="runStep('vectorsync')">▶ Sync Vectors</button>
+      <div class="step-result" id="res-vectorsync"></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:.5rem">
+    <h3>🚀 Full Pipeline</h3>
+    <p style="color:var(--fg2);font-size:.82rem;margin-bottom:.75rem">Run all steps: Ingest → Identify → Sentiment → Signals → Vector Sync</p>
+    <button class="btn btn-primary" onclick="runFullPipeline()">🚀 Run Full Pipeline</button>
+    <div class="step-result" id="res-full"></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     STOCKS VIEW
+     ════════════════════════════════════════════ -->
+<div id="view-stocks" class="view">
+  <h2 style="margin-bottom:1rem">Stocks</h2>
+  <div class="form-row" style="margin-bottom:.75rem;flex-wrap:wrap">
+    <div><label style="font-size:.78rem;color:var(--fg3)">Search</label><input id="stockSearch" placeholder="Search by symbol or name…"></div>
+    <div>
+      <label style="font-size:.78rem;color:var(--fg3)">Symbol</label>
+      <select id="stockSymbolFilter">
+        <option value="">All Symbols</option>
+      </select>
+    </div>
+    <div>
+      <label style="font-size:.78rem;color:var(--fg3)">Sector</label>
+      <select id="stockSectorFilter">
+        <option value="">All Sectors</option>
+      </select>
+    </div>
+    <div>
+      <label style="font-size:.78rem;color:var(--fg3)">Exchange</label>
+      <select id="stockExchangeFilter">
+        <option value="">All Exchanges</option>
+      </select>
+    </div>
+    <div>
+      <label style="font-size:.78rem;color:var(--fg3)">Market Cap</label>
+      <select id="stockCapFilter">
+        <option value="">All Caps</option>
+      </select>
+    </div>
+    <div style="flex:0 0 auto;align-self:flex-end;display:flex;gap:.5rem"><button class="btn btn-primary" onclick="searchStocks()">▶ Apply</button><button class="btn btn-secondary" onclick="resetStockFilters()">✕ Clear</button></div>
+  </div>
+  <div class="card">
+    <div class="scroll-area">
+      <table>
+        <thead><tr><th>Symbol</th><th>Name</th><th>Exchange</th><th>Sector</th><th>Cap</th><th>Aliases</th><th>Actions</th></tr></thead>
+        <tbody id="stocksTbody"></tbody>
+      </table>
+    </div>
+  </div>
+  <!-- Stock detail / mentions panel -->
+  <div class="card" id="stockDetail" style="display:none">
+    <h3 id="stockDetailTitle">Stock Detail</h3>
+    <div id="stockDetailBody"></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     POSTS VIEW
+     ════════════════════════════════════════════ -->
+<div id="view-posts" class="view">
+  <h2 style="margin-bottom:1rem">Raw Posts</h2>
+  <div class="form-row" style="margin-bottom:.75rem;flex-wrap:wrap">
+    <div>
+      <label style="font-size:.78rem;color:var(--fg3)">Platform</label>
+      <select id="postPlatform" onchange="loadPostDates()">
+        <option value="">All Platforms</option>
+        <option value="telegram">Telegram</option>
+        <option value="x">X (Twitter)</option>
+        <option value="linkedin">LinkedIn</option>
+      </select>
+    </div>
+    <div>
+      <label style="font-size:.78rem;color:var(--fg3)">Handle</label>
+      <select id="postAuthor" onchange="loadPostDates()">
+        <option value="">All Handles</option>
+      </select>
+    </div>
+    <div>
+      <label style="font-size:.78rem;color:var(--fg3)">Year</label>
+      <select id="postYear" onchange="onPostYearChange()">
+        <option value="">All Years</option>
+      </select>
+    </div>
+    <div>
+      <label style="font-size:.78rem;color:var(--fg3)">Month</label>
+      <select id="postMonth" onchange="onPostMonthChange()">
+        <option value="">All Months</option>
+      </select>
+    </div>
+    <div>
+      <label style="font-size:.78rem;color:var(--fg3)">Day</label>
+      <select id="postDay">
+        <option value="">All Days</option>
+      </select>
+    </div>
+    <div style="flex:0 0 auto;align-self:flex-end"><button class="btn btn-primary" id="btnApplyPosts" onclick="applyPostFilters()" style="font-weight:600">&#9654; Apply</button></div>
+    <div style="flex:0 0 auto;align-self:flex-end"><button class="btn btn-secondary" onclick="resetPostFilters()">&#10005; Clear</button></div>
+  </div>
+  <div class="card">
+    <div class="scroll-area"><table>
+      <thead><tr><th>ID</th><th>Platform</th><th>Author</th><th>Text</th><th>Date</th><th>👁</th><th>❤</th><th>Status</th></tr></thead>
+      <tbody id="postsTbody"></tbody>
+    </table></div>
+    <div style="display:flex;gap:.5rem;margin-top:.75rem;align-items:center">
+      <button class="btn btn-sm btn-secondary" id="prevPage" onclick="postsPage(-1)">← Prev</button>
+      <span id="postsPageInfo" style="font-size:.82rem;color:var(--fg3)"></span>
+      <button class="btn btn-sm btn-secondary" id="nextPage" onclick="postsPage(1)">Next →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     SEARCH VIEW
+     ════════════════════════════════════════════ -->
+<div id="view-search" class="view">
+  <h2 style="margin-bottom:1rem">Semantic Search</h2>
+  <div class="form-row">
+    <div style="flex:3"><input id="searchQ" placeholder="e.g. banking sector bullish outlook…" onkeydown="if(event.key==='Enter')doSearch()"></div>
+    <div style="flex:0 0 auto"><button class="btn btn-primary" onclick="doSearch()">🔍 Search</button></div>
+  </div>
+  <div id="searchResults" style="margin-top:1rem"></div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     TOOLS VIEW
+     ════════════════════════════════════════════ -->
+<div id="view-tools" class="view">
+  <h2 style="margin-bottom:1rem">Analysis Tools</h2>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(400px,1fr));gap:1rem">
+    <!-- Sentiment Tool -->
+    <div class="card">
+      <h3>💬 Sentiment Analyzer</h3>
+      <p style="color:var(--fg2);font-size:.82rem;margin-bottom:.5rem">Analyze any text for bullish / bearish sentiment.</p>
+      <textarea id="sentText" rows="3" placeholder="Enter text like: RELIANCE breakout above 2800, strong buy, target 3000"></textarea>
+      <button class="btn btn-primary btn-sm" style="margin-top:.5rem" onclick="analyzeSentiment()">Analyze</button>
+      <div id="sentResult" style="margin-top:.75rem"></div>
+    </div>
+    <!-- Stock ID Tool -->
+    <div class="card">
+      <h3>🔍 Stock Identifier</h3>
+      <p style="color:var(--fg2);font-size:.82rem;margin-bottom:.5rem">Identify stocks, targets, stop-losses from text.</p>
+      <textarea id="idText" rows="3" placeholder="Buy TCS target 4200 SL 3900 positional"></textarea>
+      <button class="btn btn-green btn-sm" style="margin-top:.5rem" onclick="identifyStocks()">Identify</button>
+      <div id="idResult" style="margin-top:.75rem"></div>
+    </div>
+    <!-- Telegram Handle Mapping -->
+    <div class="card">
+      <h3>🗺️ Telegram Handle Mapping</h3>
+      <p style="color:var(--fg2);font-size:.82rem;margin-bottom:.5rem">
+        Map Apify handle IDs (e.g. <code>@DGPIndia</code>) to display names (e.g. <code>Wealthcreator</code>)
+        so all posts from the same channel share one consistent author name.
+      </p>
+      <div id="handleMapList" style="margin-bottom:.75rem;font-size:.85rem"></div>
+      <div class="form-row" style="gap:.5rem">
+        <div><label style="font-size:.75rem;color:var(--fg3)">Handle / @ID</label>
+          <input id="mapHandle" placeholder="e.g. DGPIndia" style="width:160px"></div>
+        <div><label style="font-size:.75rem;color:var(--fg3)">Display Name</label>
+          <input id="mapName" placeholder="e.g. Wealthcreator" style="width:160px"></div>
+        <div style="align-self:flex-end">
+          <button class="btn btn-green btn-sm" onclick="addHandleMapping()">+ Add</button>
+        </div>
+      </div>
+      <div id="mapResult" style="margin-top:.5rem"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     PREDICT VIEW
+     ════════════════════════════════════════════ -->
+<div id="view-predict" class="view">
+  <h2 style="margin-bottom:1rem">RAG Prediction</h2>
+
+  <div class="card">
+    <h3>📈 Stock Prediction</h3>
+    <p style="color:var(--fg2);font-size:.82rem;margin-bottom:.75rem">AI-powered prediction based on social media sentiment (requires LLM API key).</p>
+    <div class="form-row">
+      <div><label>Stock Symbol</label><input id="predSymbol" placeholder="RELIANCE"></div>
+      <div><label>Lookback (hours)</label><input id="predHours" type="number" value="72"></div>
+      <div><label>Max Posts</label><input id="predPosts" type="number" value="20"></div>
+    </div>
+    <button class="btn btn-primary" onclick="runPredict()">🤖 Predict</button>
+    <div id="predResult"></div>
+  </div>
+
+  <div class="card">
+    <h3>💡 Ask StockRAG</h3>
+    <p style="color:var(--fg2);font-size:.82rem;margin-bottom:.75rem">Ask any question — StockRAG retrieves relevant posts and answers via LLM.</p>
+    <div class="form-row">
+      <div style="flex:3"><input id="ragQ" placeholder="What is the sentiment around banking stocks?" onkeydown="if(event.key==='Enter')runQuery()"></div>
+      <div style="flex:0 0 auto"><button class="btn btn-purple" onclick="runQuery()">Ask</button></div>
+    </div>
+    <div id="ragAnswer"></div>
+  </div>
+</div>
+
+</div><!-- /container -->
+
+<!-- Toast container -->
+<div id="toast"></div>
+
+<script>
+/* ═══════ STATE ═══════ */
+let currentView = 'dashboard';
+let postsCurrentPage = 1;
+
+/* ═══════ HELPERS ═══════ */
+async function api(url, opts = {}) {
+  try {
+    const r = await fetch(url, {
+      headers: {'Content-Type': 'application/json'},
+      ...opts,
+      body: opts.body ? JSON.stringify(opts.body) : undefined,
+    });
+    return await r.json();
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+}
+
+function toast(msg, ok = true) {
+  const el = document.createElement('div');
+  el.className = 'toast-msg ' + (ok ? 'toast-ok' : 'toast-err');
+  el.textContent = msg;
+  document.getElementById('toast').appendChild(el);
+  setTimeout(() => el.remove(), 4000);
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+function platIcon(p) {
+  const m = { telegram:'📨', x:'𝕏', linkedin:'💼', reddit:'🔴', youtube:'▶' };
+  return (m[p] || '📄') + ' ' + (p || '');
+}
+
+function sentBadge(label, score) {
+  if (!label) return '';
+  const cls = label.includes('bullish') ? 'badge-green' : label.includes('bearish') ? 'badge-red' : 'badge-amber';
+  return `<span class="badge ${cls}">${label}${score != null ? ' ('+score.toFixed(2)+')' : ''}</span>`;
+}
+
+/* ═══════ NAV ═══════ */
+function showView(id, ev) {
+  currentView = id;
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-' + id).classList.add('active');
+  document.querySelectorAll('.nav-links button').forEach(b => b.classList.remove('active'));
+  if (ev && ev.target) ev.target.classList.add('active');
+  // lazy load
+  if (id === 'stocks') { loadStockFilters(); searchStocks(); }
+  if (id === 'posts') { loadPostDates(); loadPosts(); }
+  if (id === 'dashboard') { refreshStats(); loadSources(); refreshPipelineStatus(); }
+  if (id === 'pipeline') { refreshPipelineStatus(); }
+  if (id === 'tools') { loadHandleMap(); }
+}
+
+function goNav(viewId) {
+  // programmatic navigation (click the right nav button)
+  const btns = document.querySelectorAll('.nav-links button');
+  for (const b of btns) {
+    if (b.textContent.trim().toLowerCase().includes(viewId)) { b.click(); return; }
+  }
+  // fallback
+  currentView = viewId;
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-' + viewId).classList.add('active');
+  document.querySelectorAll('.nav-links button').forEach(b => b.classList.remove('active'));
+}
+
+/* ═══════ DASHBOARD ═══════ */
+async function refreshStats() {
+  const r = await api('/api/stats');
+  if (!r.ok) return;
+  const d = r.db, v = r.vector;
+  document.getElementById('s-sources').textContent = d.sources;
+  document.getElementById('s-posts').textContent = d.raw_posts;
+  document.getElementById('s-processed').textContent = d.processed_posts;
+  document.getElementById('s-relevant').textContent = d.stock_relevant_posts;
+  document.getElementById('s-stocks').textContent = d.stocks;
+  document.getElementById('s-mentions').textContent = d.stock_mentions;
+  document.getElementById('s-signals').textContent = d.signals;
+  document.getElementById('s-vectors').textContent = v.total_documents;
+  document.getElementById('dbStatus').textContent = `DB: ${d.raw_posts} posts · ${d.stocks} stocks · ${v.total_documents} vectors`;
+}
+
+async function purgeAllPosts() {
+  const ok = confirm('⚠️ PURGE ALL POSTS?\n\nThis will permanently delete:\n• All raw posts\n• All stock mentions\n• All signals\n• All sources\n\nStocks and vectors are kept.\nThis cannot be undone. Continue?');
+  if (!ok) return;
+  const r = await api('/api/purge/posts', { method: 'POST', body: {} });
+  if (r.ok) {
+    toast('Purged ' + (r.posts||0) + ' posts, ' + (r.mentions||0) + ' mentions, ' + (r.signals||0) + ' signals, ' + (r.sources||0) + ' sources', true);
+    refreshStats();
+    refreshPipelineStatus();
+  } else {
+    toast('Purge failed: ' + (r.error||'unknown'), false);
+  }
+}
+
+async function loadSources() {
+  const r = await api('/api/sources');
+  if (!r.ok || !r.sources.length) { document.getElementById('sourcesCard').style.display='none'; return; }
+  document.getElementById('sourcesCard').style.display='';
+  document.getElementById('sourcesTbody').innerHTML = r.sources.map(s => `
+    <tr>
+      <td>${platIcon(s.platform)}</td>
+      <td>${esc(s.handle)}</td>
+      <td>${esc(s.display_name||'')}</td>
+      <td>${esc(s.category||'')}</td>
+      <td>${s.reliability_score != null ? s.reliability_score.toFixed(1) : '—'}</td>
+    </tr>`).join('');
+}
+
+/* ═══════ PIPELINE STATUS ═══════ */
+async function refreshPipelineStatus() {
+  const r = await api('/api/pipeline/status');
+  if (!r.ok) return;
+  const stages = r.stages;
+
+  // Update pipeline flow on dashboard
+  const stageKeys = ['ingest', 'identify', 'sentiment', 'signals', 'vectors'];
+  for (const key of stageKeys) {
+    const s = stages[key];
+    const el = document.getElementById('pf-' + key);
+    const nEl = document.getElementById('pf-' + key + '-n');
+    const pEl = document.getElementById('pf-' + key + '-p');
+    if (!el || !nEl) continue;
+    nEl.textContent = s.done;
+    el.className = 'pipeline-stage ' + (s.pending > 0 ? 'pending' : s.done > 0 ? 'done' : 'empty');
+    if (pEl) {
+      if (s.pending > 0) {
+        pEl.innerHTML = `<span style="background:rgba(245,158,11,.15);color:var(--amber)">${s.pending} pending</span>`;
+      } else if (s.done > 0) {
+        pEl.innerHTML = `<span style="background:rgba(34,197,94,.1);color:var(--green)">✓ done</span>`;
+      } else {
+        pEl.innerHTML = '';
+      }
+    }
+  }
+
+  // Update predict stage
+  const predP = document.getElementById('pf-predict-p');
+  if (predP) {
+    if (r.summary.vectors > 0) {
+      predP.innerHTML = '<span style="background:rgba(56,189,248,.1);color:var(--accent)">ready</span>';
+      const predStage = document.getElementById('pf-predict');
+      if (predStage) predStage.className = 'pipeline-stage done';
+    } else {
+      predP.innerHTML = '<span style="background:rgba(245,158,11,.15);color:var(--amber)">need vectors</span>';
+    }
+  }
+
+  // Update pipeline view pending counts
+  const pipeStatusMap = {
+    'identify':  stages.identify,
+    'sentiment': stages.sentiment,
+    'signals':   stages.signals,
+    'vectors':   stages.vectors,
+  };
+  let totalPending = 0;
+  for (const [key, s] of Object.entries(pipeStatusMap)) {
+    const statusEl = document.getElementById('pipe-' + key + '-status');
+    if (statusEl) {
+      if (s.pending > 0) {
+        statusEl.innerHTML = `<span class="badge badge-amber">${s.pending} pending</span> <span style="color:var(--fg3);font-size:.78rem">/ ${s.done} done</span>`;
+        totalPending += s.pending;
+      } else if (s.done > 0) {
+        statusEl.innerHTML = `<span class="badge badge-green">✓ ${s.done} done</span>`;
+      } else {
+        statusEl.innerHTML = `<span style="color:var(--fg3);font-size:.8rem">No data yet</span>`;
+      }
+    }
+  }
+
+  // Show/hide pending alert
+  const pendingCard = document.getElementById('pipelinePendingCard');
+  if (pendingCard) {
+    if (totalPending > 0) {
+      pendingCard.style.display = '';
+      document.getElementById('pipelinePendingMsg').textContent =
+        `${totalPending} items need processing across the pipeline.`;
+    } else {
+      pendingCard.style.display = 'none';
+    }
+  }
+
+  // Activity log
+  updateActivityLog(r.recent_posts);
+}
+
+function updateActivityLog(recentPosts) {
+  const el = document.getElementById('activityLog');
+  if (!el) return;
+  if (!recentPosts || !recentPosts.length) {
+    el.innerHTML = '<p style="color:var(--fg3);font-size:.85rem">No posts yet. Start by scraping some data from the <b>Ingest</b> tab.</p>';
+    return;
+  }
+  el.innerHTML = recentPosts.map(p => {
+    const dotClass = p.is_stock_relevant ? 'green' : p.is_processed ? 'blue' : 'amber';
+    const statusText = p.is_stock_relevant ? 'Stock relevant' : p.is_processed ? 'Processed (no stock)' : 'Awaiting processing';
+    return `<div class="activity-item">
+      <div class="activity-dot ${dotClass}"></div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem">
+          <span style="font-size:.82rem;font-weight:600">${platIcon(p.platform)} ${esc(p.author || 'Unknown')}</span>
+          <span style="font-size:.72rem;color:var(--fg3);white-space:nowrap">${p.posted_at || ''}</span>
+        </div>
+        <div style="font-size:.82rem;color:var(--fg2);margin-top:.15rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.text)}</div>
+        <div style="margin-top:.2rem">
+          <span class="badge ${dotClass === 'green' ? 'badge-green' : dotClass === 'blue' ? 'badge-blue' : 'badge-amber'}" style="font-size:.65rem">${statusText}</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ═══════ QUICK-RUN helpers (from Ingest next-steps) ═══════ */
+async function quickRunStep(step) {
+  const labels = { identify: 'Identifying stocks', sentiment: 'Analyzing sentiment', signals: 'Generating signals', vectorsync: 'Syncing vectors' };
+  toast(labels[step] + '…');
+  const r = await api('/api/process/' + step, { method: 'POST', body: {} });
+  toast(r.ok ? (step + ' complete!') : ('Error: ' + r.error), r.ok);
+  refreshStats();
+  refreshPipelineStatus();
+}
+
+async function runFullPipelineFromIngest() {
+  const el = document.getElementById('liveResult');
+  if (el) el.innerHTML += '<div style="margin-top:.5rem"><span class="spinner"></span> Running full pipeline…</div>';
+  toast('Running full pipeline…');
+  const r = await api('/api/process/full', { method: 'POST', body: {} });
+  if (el) {
+    el.innerHTML += `<div style="margin-top:.5rem;padding:.75rem;background:var(--bg);border-radius:8px">
+      ${r.ok
+        ? '<span class="badge badge-green" style="font-size:.82rem">✓ Pipeline complete!</span><br><pre style="font-size:.78rem;color:var(--fg2);margin-top:.3rem">' + JSON.stringify(r.steps, null, 2) + '</pre>'
+        : '<span style="color:var(--red);font-weight:600">Pipeline error:</span> ' + esc(r.error)
+      }
+    </div>`;
+  }
+  toast(r.ok ? 'Full pipeline complete!' : r.error, r.ok);
+  refreshStats();
+  refreshPipelineStatus();
+}
+
+/* ═══════ INGESTION ═══════ */
+
+function onPlatformChange() {
+  const p = document.getElementById('livePlatform').value;
+  const tgOpts = document.getElementById('telegramOptions');
+  if (p === 'telegram') {
+    tgOpts.style.display = '';
+    checkTelegramAuth();
+  } else {
+    tgOpts.style.display = 'none';
+  }
+}
+
+function onTgMethodChange() {
+  const method = document.querySelector('input[name="tgMethod"]:checked').value;
+  document.getElementById('tgFreeInfo').style.display = method === 'free' ? '' : 'none';
+  document.getElementById('tgApifyInfo').style.display = method === 'apify' ? '' : 'none';
+}
+
+async function checkTelegramAuth() {
+  const el = document.getElementById('tgAuthStatus');
+  try {
+    const r = await api('/api/telegram/status');
+    if (r.ready) {
+      el.innerHTML = '🟢 <b>Authenticated</b> — ready to scrape for free!';
+    } else if (r.has_credentials && !r.is_authenticated) {
+      el.innerHTML = '🟡 API credentials found but <b>not authenticated</b>. Run in terminal: <code>python -m stock_rag.telegram_auth</code>';
+    } else {
+      el.innerHTML = '🔴 <b>Not configured.</b> Add <code>TELEGRAM_API_ID</code> + <code>TELEGRAM_API_HASH</code> to .env (<a href="https://my.telegram.org/auth" target="_blank">get free</a>), then run: <code>python -m stock_rag.telegram_auth</code>';
+    }
+  } catch(e) {
+    el.innerHTML = '⚠️ Could not check status';
+  }
+}
+
+function getTgMethod() {
+  const radio = document.querySelector('input[name="tgMethod"]:checked');
+  return radio ? radio.value : 'free';
+}
+
+async function liveScrape() {
+  const platform = document.getElementById('livePlatform').value;
+  const handle = document.getElementById('liveHandle').value.trim().replace(/^@/,'');
+  const maxPosts = +document.getElementById('liveMax').value || 200;
+  if (!handle) return toast('Enter a handle / username', false);
+
+  const el = document.getElementById('liveResult');
+  const useFree = (platform === 'telegram' && getTgMethod() === 'free');
+
+  // Build request
+  let endpoint, body;
+  if (useFree) {
+    endpoint = '/api/ingest/telegram-free';
+    const dateRange = document.getElementById('liveDateRange')?.value || '';
+    const ocrEnabled = document.getElementById('enableOcr')?.checked || false;
+    body = { handle, max_posts: maxPosts, enable_ocr: ocrEnabled };
+    if (dateRange) body.date_range = dateRange;
+    const estMinutes = maxPosts > 5000 ? Math.ceil(maxPosts / 5000) + 1 : (maxPosts > 500 ? 2 : 1);
+    const ocrNote = ocrEnabled ? ' (with OCR — slower)' : '';
+    el.innerHTML = '<span class="spinner"></span> Scraping <strong>@' + esc(handle)
+      + '</strong> via Telethon (FREE)' + ocrNote + '… ~' + estMinutes + ' min for '
+      + maxPosts.toLocaleString() + ' posts.';
+  } else {
+    endpoint = '/api/ingest/live';
+    const dateRange = document.getElementById('liveDateRange')?.value || '';
+    const budgetUsd = +((document.getElementById('liveBudget')?.value) || 5);
+    body = { platform, handle, max_posts: maxPosts, budget_usd: budgetUsd };
+    if (dateRange) body.date_range = dateRange;
+    const estCost = (maxPosts * 0.00039).toFixed(2);
+    el.innerHTML = '<span class="spinner"></span> Scraping <strong>@' + esc(handle)
+      + '</strong> via Apify… budget $' + budgetUsd + ', est ~$' + estCost;
+  }
+
+  const r = await api(endpoint, { method: 'POST', body });
+  if (r.ok) {
+    const methodLabel = useFree ? ' (Telethon FREE)' : ' (Apify)';
+    el.innerHTML = `<div style="margin-top:.5rem;padding:.75rem;background:var(--bg);border-radius:8px">
+      <span class="badge badge-green" style="font-size:.82rem">✓ Scraped ${r.scraped_items} items from @${esc(r.handle)}${methodLabel}</span><br>
+      <span style="font-size:.82rem;color:var(--fg2);margin-top:.3rem;display:inline-block">Inserted: ${r.inserted} · Skipped (dupes): ${r.skipped}</span>
+    </div>
+    <div class="next-steps">
+      <h4>✅ Scrape Complete — What's Next?</h4>
+      <div class="step-row"><span class="step-num">1</span> <span>Posts are now stored in the database.</span>
+        <button class="btn btn-sm btn-secondary" style="margin-left:auto" onclick="goNav('posts')">👁 View Posts</button></div>
+      <div class="step-row"><span class="step-num">2</span> <span>Run <b>Stock Identification</b> to find stock mentions in posts.</span>
+        <button class="btn btn-sm btn-primary" style="margin-left:auto" onclick="quickRunStep('identify')">▶ Run</button></div>
+      <div class="step-row"><span class="step-num">3</span> <span>Run <b>Sentiment Analysis</b> to score bullish/bearish.</span>
+        <button class="btn btn-sm btn-green" style="margin-left:auto" onclick="quickRunStep('sentiment')">▶ Run</button></div>
+      <div class="step-row"><span class="step-num">4</span> <span>Run <b>Signal Generation</b> to aggregate predictions.</span>
+        <button class="btn btn-sm btn-amber" style="margin-left:auto" onclick="quickRunStep('signals')">▶ Run</button></div>
+      <div class="step-row"><span class="step-num">5</span> <span>Run <b>Vector Sync</b> for semantic search & RAG.</span>
+        <button class="btn btn-sm btn-purple" style="margin-left:auto" onclick="quickRunStep('vectorsync')">▶ Run</button></div>
+      <hr style="border-color:var(--bg3);margin:.5rem 0">
+      <div class="step-row"><span style="font-size:1rem">🚀</span> <span>Or <b>run everything at once</b>:</span>
+        <button class="btn btn-sm btn-primary" style="margin-left:auto" onclick="runFullPipelineFromIngest()">🚀 Run Full Pipeline</button></div>
+    </div>`;
+    toast('Scrape complete: ' + r.inserted + ' new posts from @' + handle);
+  } else {
+    el.innerHTML = `<div style="margin-top:.5rem;padding:.75rem;background:rgba(239,68,68,.08);border:1px solid var(--red);border-radius:8px">
+      <span style="color:var(--red);font-weight:600">Error:</span>
+      <span style="color:var(--fg2);font-size:.85rem"> ${esc(r.error)}</span>
+    </div>`;
+    toast(r.error, false);
+  }
+  refreshStats();
+}
+
+async function autoIngest() {
+  const dir = document.getElementById('autoDir').value || '.';
+  toast('Auto-ingesting from ' + dir + '…');
+  const r = await api('/api/ingest/auto', { method: 'POST', body: { base_dir: dir } });
+  showIngestResult(r);
+}
+
+async function ingestFile() {
+  const fp = document.getElementById('filePath').value;
+  const plat = document.getElementById('filePlatform').value;
+  const handle = document.getElementById('fileHandle').value;
+  if (!fp) return toast('File path required', false);
+  toast('Ingesting ' + fp + '…');
+  const r = await api('/api/ingest/file', { method: 'POST', body: { file_path: fp, platform: plat, handle } });
+  showIngestResult(r);
+}
+
+function showIngestResult(r) {
+  document.getElementById('ingestResult').style.display = '';
+  document.getElementById('ingestResultPre').textContent = JSON.stringify(r, null, 2);
+  toast(r.ok ? 'Ingestion complete' : ('Error: ' + r.error), r.ok);
+  refreshStats();
+}
+
+/* ═══════ PIPELINE ═══════ */
+async function runStep(step) {
+  const el = document.getElementById('res-' + step);
+  el.innerHTML = '<span class="spinner"></span> Running…';
+  const r = await api('/api/process/' + step, { method: 'POST', body: {} });
+  el.innerHTML = `<pre style="margin-top:.5rem;font-size:.8rem;color:var(--fg2)">${JSON.stringify(r, null, 2)}</pre>`;
+  toast(r.ok ? (step + ' complete') : r.error, r.ok);
+  refreshStats();
+  refreshPipelineStatus();
+}
+
+async function runFullPipeline() {
+  const el = document.getElementById('res-full');
+  if (el) el.innerHTML = '<span class="spinner"></span> Running full pipeline…';
+  toast('Running full pipeline (this may take a moment)…');
+  const r = await api('/api/process/full', { method: 'POST', body: {} });
+  if (el) el.innerHTML = `<pre style="margin-top:.5rem;font-size:.8rem;color:var(--fg2)">${JSON.stringify(r, null, 2)}</pre>`;
+  toast(r.ok ? 'Full pipeline complete!' : r.error, r.ok);
+  refreshStats();
+  refreshPipelineStatus();
+}
+
+/* ═══════ STOCKS ═══════ */
+async function loadStockFilters() {
+  const r = await api('/api/stocks/filters');
+  if (!r.ok) return;
+  const fill = (id, arr) => {
+    const sel = document.getElementById(id); if (!sel) return;
+    const val = sel.value;
+    while (sel.options.length > 1) sel.remove(1);
+    arr.forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = v; sel.add(o); });
+    sel.value = val; // restore
+  };
+  fill('stockSymbolFilter', r.symbols || []);
+  fill('stockSectorFilter', r.sectors || []);
+  fill('stockExchangeFilter', r.exchanges || []);
+  fill('stockCapFilter', r.market_caps || []);
+}
+function resetStockFilters() {
+  ['stockSearch','stockSymbolFilter','stockSectorFilter','stockExchangeFilter','stockCapFilter'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  searchStocks();
+}
+async function searchStocks() {
+  const q = document.getElementById('stockSearch')?.value || '';
+  const symbol = document.getElementById('stockSymbolFilter')?.value || '';
+  const sector = document.getElementById('stockSectorFilter')?.value || '';
+  const exchange = document.getElementById('stockExchangeFilter')?.value || '';
+  const cap = document.getElementById('stockCapFilter')?.value || '';
+  let url = '/api/stocks?q=' + encodeURIComponent(symbol || q);
+  if (sector) url += '&sector=' + encodeURIComponent(sector);
+  if (exchange) url += '&exchange=' + encodeURIComponent(exchange);
+  if (cap) url += '&market_cap=' + encodeURIComponent(cap);
+  const r = await api(url);
+  if (!r.ok) return;
+  document.getElementById('stocksTbody').innerHTML = r.stocks.map(s => `
+    <tr>
+      <td><strong>${esc(s.symbol)}</strong></td>
+      <td>${esc(s.name)}</td>
+      <td>${esc(s.exchange)}</td>
+      <td>${esc(s.sector||'')}</td>
+      <td>${esc(s.market_cap||'')}</td>
+      <td style="font-size:.78rem;color:var(--fg3)">${(s.aliases||[]).join(', ')}</td>
+      <td><button class="btn btn-sm btn-secondary" onclick="viewStock(${s.id},'${esc(s.symbol)}')">Details</button></td>
+    </tr>`).join('');
+}
+
+async function viewStock(id, symbol) {
+  const [mentions, signal] = await Promise.all([
+    api(`/api/stocks/${id}/mentions?hours=720&limit=30`),
+    api(`/api/stocks/${id}/signal`),
+  ]);
+  document.getElementById('stockDetail').style.display = '';
+  document.getElementById('stockDetailTitle').textContent = symbol + ' — Detail';
+
+  let html = '';
+  if (signal.ok && signal.signal) {
+    const s = signal.signal;
+    html += `<div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1rem">
+      ${sentBadge(s.signal_strength, s.avg_sentiment)}
+      <span class="badge badge-blue">Direction: ${s.predicted_direction||'—'}</span>
+      <span class="badge badge-purple">Conf: ${s.confidence!=null?s.confidence.toFixed(2):'—'}</span>
+      <span style="font-size:.82rem;color:var(--fg3)">Mentions: ${s.total_mentions} (🟢${s.bullish_count} 🔴${s.bearish_count} ⚪${s.neutral_count})</span>
+    </div>`;
+  } else {
+    html += '<p style="color:var(--fg3);font-size:.85rem">No signal data yet. Run pipeline first.</p>';
+  }
+
+  if (mentions.ok && mentions.mentions.length) {
+    html += `<h4 style="color:var(--purple);margin-bottom:.5rem">Recent Mentions (${mentions.count})</h4>`;
+    html += '<table><thead><tr><th>Method</th><th>Match</th><th>Sentiment</th><th>Action</th><th>Target</th><th>SL</th><th>Horizon</th><th>Date</th></tr></thead><tbody>';
+    for (const m of mentions.mentions) {
+      html += `<tr>
+        <td>${esc(m.match_method||'')}</td>
+        <td>${esc(m.matched_text||'')}</td>
+        <td>${sentBadge(m.sentiment_label, m.sentiment_score)}</td>
+        <td>${esc(m.action_suggested||'')}</td>
+        <td>${m.target_price||'—'}</td>
+        <td>${m.stop_loss||'—'}</td>
+        <td>${esc(m.time_horizon||'')}</td>
+        <td style="font-size:.78rem;color:var(--fg3)">${m.created_at||''}</td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+  } else {
+    html += '<p style="color:var(--fg3);font-size:.85rem;margin-top:.5rem">No mentions found. Try ingesting data and running the pipeline.</p>';
+  }
+
+  document.getElementById('stockDetailBody').innerHTML = html;
+}
+
+/* ═══════ POSTS ═══════ */
+const MONTH_NAMES = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+async function loadPostDates() {
+  const plat = document.getElementById('postPlatform')?.value || '';
+  const author = document.getElementById('postAuthor')?.value || '';
+  const year = document.getElementById('postYear')?.value || '';
+  const month = document.getElementById('postMonth')?.value || '';
+  let url = '/api/posts/dates?platform=' + encodeURIComponent(plat);
+  if (author) url += '&author=' + encodeURIComponent(author);
+  if (year) url += '&year=' + year;
+  if (year && month) url += '&month=' + month;
+  const r = await api(url);
+  if (!r.ok) return;
+
+  // Populate authors/handles
+  const aSel = document.getElementById('postAuthor');
+  const curA = aSel.value;
+  while (aSel.options.length > 1) aSel.remove(1);
+  (r.authors||[]).forEach(a => { const o = document.createElement('option'); o.value = a; o.textContent = a; aSel.add(o); });
+  aSel.value = curA;
+
+  // Populate years (always)
+  const ySel = document.getElementById('postYear');
+  const curY = ySel.value;
+  while (ySel.options.length > 1) ySel.remove(1);
+  (r.years||[]).forEach(y => { const o = document.createElement('option'); o.value = y; o.textContent = y; ySel.add(o); });
+  ySel.value = curY;
+
+  // Populate months (only if year selected)
+  const mSel = document.getElementById('postMonth');
+  const curM = mSel.value;
+  while (mSel.options.length > 1) mSel.remove(1);
+  if (year) {
+    (r.months||[]).forEach(m => { const o = document.createElement('option'); o.value = m; o.textContent = MONTH_NAMES[m] || m; mSel.add(o); });
+  }
+  mSel.value = curM;
+  mSel.disabled = !year;
+
+  // Populate days (only if year+month selected)
+  const dSel = document.getElementById('postDay');
+  const curD = dSel.value;
+  while (dSel.options.length > 1) dSel.remove(1);
+  if (year && month) {
+    (r.days||[]).forEach(d => { const o = document.createElement('option'); o.value = d; o.textContent = d; dSel.add(o); });
+  }
+  dSel.value = curD;
+  dSel.disabled = !(year && month);
+}
+
+function onPostYearChange() {
+  document.getElementById('postMonth').value = '';
+  document.getElementById('postDay').value = '';
+  loadPostDates();
+}
+function onPostMonthChange() {
+  document.getElementById('postDay').value = '';
+  loadPostDates();
+}
+async function applyPostFilters() {
+  const btn = document.getElementById('btnApplyPosts');
+  if (!btn) { alert('Apply button not found'); return; }
+  btn.disabled = true; btn.textContent = '\u23F3 Loading\u2026';
+  postsCurrentPage = 1;
+  try {
+    await loadPosts();
+    const plat = document.getElementById('postPlatform')?.value || '';
+    const author = document.getElementById('postAuthor')?.value || '';
+    const year = document.getElementById('postYear')?.value || '';
+    const month = document.getElementById('postMonth')?.value || '';
+    const day = document.getElementById('postDay')?.value || '';
+    let parts = [];
+    if (plat) parts.push(plat);
+    if (author) parts.push(author);
+    if (year) { let d2 = year; if (month) d2 += '-' + String(month).padStart(2,'0'); if (day) d2 += '-' + String(day).padStart(2,'0'); parts.push(d2); }
+    toast('Filters applied' + (parts.length ? ': ' + parts.join(', ') : ' (showing all)'), true);
+  } catch(err) {
+    toast('Filter error: ' + err.message, false);
+  } finally {
+    btn.disabled = false; btn.textContent = '\u25B6 Apply';
+  }
+}
+function resetPostFilters() {
+  document.getElementById('postPlatform').value = '';
+  document.getElementById('postAuthor').value = '';
+  document.getElementById('postYear').value = '';
+  document.getElementById('postMonth').value = '';
+  document.getElementById('postDay').value = '';
+  postsCurrentPage = 1;
+  loadPostDates();
+  loadPosts();
+}
+
+async function loadPosts() {
+  const plat = document.getElementById('postPlatform')?.value || '';
+  const author = document.getElementById('postAuthor')?.value || '';
+  const year = document.getElementById('postYear')?.value || '';
+  const month = document.getElementById('postMonth')?.value || '';
+  const day = document.getElementById('postDay')?.value || '';
+  let url = '/api/posts?page=' + postsCurrentPage + '&per_page=30&platform=' + encodeURIComponent(plat);
+  if (author) url += '&author=' + encodeURIComponent(author);
+  if (year) url += '&year=' + encodeURIComponent(year);
+  if (month) url += '&month=' + encodeURIComponent(month);
+  if (day) url += '&day=' + encodeURIComponent(day);
+  const r = await api(url);
+  if (!r.ok) { toast('Posts load error: ' + (r.error || 'unknown'), false); return; }
+  const totalPages = Math.ceil(r.total / r.per_page);
+  document.getElementById('postsPageInfo').textContent = `Page ${r.page} / ${totalPages || 1} (${r.total} total)`;
+  document.getElementById('prevPage').disabled = r.page <= 1;
+  document.getElementById('nextPage').disabled = r.page >= totalPages;
+  document.getElementById('postsTbody').innerHTML = r.posts.map(p => `
+    <tr>
+      <td>${p.id}</td>
+      <td>${platIcon(p.platform)}</td>
+      <td>${esc(p.author||'')}</td>
+      <td style="max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.text||'')}</td>
+      <td style="font-size:.78rem;color:var(--fg3);white-space:nowrap">${p.posted_at||''}</td>
+      <td>${p.views||0}</td>
+      <td>${p.likes||0}</td>
+      <td>
+        ${p.is_processed ? '<span class="badge badge-green">proc</span>' : '<span class="badge badge-amber">raw</span>'}
+        ${p.is_stock_relevant ? '<span class="badge badge-blue">stock</span>' : ''}
+      </td>
+    </tr>`).join('');
+}
+function postsPage(dir) { postsCurrentPage = Math.max(1, postsCurrentPage + dir); loadPosts(); }
+
+/* ═══════ SEARCH ═══════ */
+async function doSearch() {
+  const q = document.getElementById('searchQ').value;
+  if (!q) return;
+  document.getElementById('searchResults').innerHTML = '<span class="spinner"></span> Searching…';
+  const r = await api('/api/search?q=' + encodeURIComponent(q) + '&n=15');
+  if (!r.ok) { document.getElementById('searchResults').innerHTML = '<p style="color:var(--red)">'+esc(r.error)+'</p>'; return; }
+  if (!r.results.length) { document.getElementById('searchResults').innerHTML = '<p style="color:var(--fg3)">No results. Sync vectors first.</p>'; return; }
+  document.getElementById('searchResults').innerHTML = r.results.map((x,i) => `
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem">
+        <strong style="color:var(--accent)">#${i+1}</strong>
+        <span style="font-size:.78rem;color:var(--fg3)">Distance: ${x.distance?.toFixed(4)||'—'} · ${platIcon(x.metadata?.platform)}</span>
+      </div>
+      <p style="font-size:.85rem">${esc(x.text||'')}</p>
+      <div style="font-size:.75rem;color:var(--fg3);margin-top:.25rem">Author: ${esc(x.metadata?.author||'')} · ${x.metadata?.posted_at||''}</div>
+    </div>`).join('');
+}
+
+/* ═══════ TOOLS ═══════ */
+async function analyzeSentiment() {
+  const text = document.getElementById('sentText').value;
+  if (!text) return;
+  const r = await api('/api/sentiment/analyze', { method: 'POST', body: { text } });
+  if (!r.ok) { document.getElementById('sentResult').innerHTML = '<p style="color:var(--red)">'+esc(r.error)+'</p>'; return; }
+  document.getElementById('sentResult').innerHTML = `
+    <div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:center;margin-bottom:.5rem">
+      ${sentBadge(r.label, r.score)}
+      <span class="badge badge-purple">Confidence: ${r.confidence?.toFixed(2)}</span>
+    </div>
+    <div style="font-size:.82rem">
+      ${r.bullish_signals?.length ? '<span style="color:var(--green)">🟢 '+r.bullish_signals.join(', ')+'</span><br>' : ''}
+      ${r.bearish_signals?.length ? '<span style="color:var(--red)">🔴 '+r.bearish_signals.join(', ')+'</span>' : ''}
+    </div>`;
+}
+
+async function identifyStocks() {
+  const text = document.getElementById('idText').value;
+  if (!text) return;
+  const r = await api('/api/identify', { method: 'POST', body: { text } });
+  if (!r.ok) { document.getElementById('idResult').innerHTML = '<p style="color:var(--red)">'+esc(r.error)+'</p>'; return; }
+  let html = '';
+  if (r.stocks?.length) {
+    html += '<table><thead><tr><th>Symbol</th><th>Name</th><th>Method</th><th>Confidence</th></tr></thead><tbody>';
+    for (const s of r.stocks) html += `<tr><td><strong>${esc(s.symbol||'')}</strong></td><td>${esc(s.name||'')}</td><td>${esc(s.match_method)}</td><td>${s.confidence?.toFixed(2)}</td></tr>`;
+    html += '</tbody></table>';
+  } else {
+    html += '<p style="color:var(--fg3)">No stocks found.</p>';
+  }
+  if (r.details && Object.keys(r.details).length) {
+    html += '<div style="margin-top:.5rem;font-size:.82rem;color:var(--fg2)">';
+    for (const [k,v] of Object.entries(r.details)) { if(v!=null) html += `<span class="badge badge-blue" style="margin-right:.3rem">${k}: ${v}</span>`; }
+    html += '</div>';
+  }
+  document.getElementById('idResult').innerHTML = html;
+}
+
+/* ═══════ PREDICT ═══════ */
+
+/* ── Handle Mapping (Tools tab) ── */
+async function loadHandleMap() {
+  const r = await api('/api/telegram/handle-map');
+  const el = document.getElementById('handleMapList');
+  if (!r.ok || !r.mappings) { el.innerHTML = '<span style="color:var(--fg3)">Could not load mappings.</span>'; return; }
+  const entries = Object.entries(r.mappings);
+  if (!entries.length) { el.innerHTML = '<span style="color:var(--fg3)">No mappings yet.</span>'; return; }
+  let html = '<table style="width:100%"><thead><tr><th>Handle / @ID</th><th>Display Name</th><th></th></tr></thead><tbody>';
+  for (const [h, n] of entries) {
+    html += '<tr><td>'+esc(h)+'</td><td><strong>'+esc(n)+'</strong></td>'
+          + '<td><button class="btn btn-sm" style="padding:2px 8px;font-size:.75rem;background:var(--red)" onclick="removeHandleMapping(\''+esc(h)+'\')">✕</button></td></tr>';
+  }
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+async function addHandleMapping() {
+  const h = document.getElementById('mapHandle').value.trim().replace(/^@/,'');
+  const n = document.getElementById('mapName').value.trim();
+  if (!h || !n) { toast('Both fields required', false); return; }
+  const r = await api('/api/telegram/handle-map', { method:'POST', body:{ handle:h, display_name:n }});
+  document.getElementById('mapResult').innerHTML = r.ok
+    ? '<span style="color:var(--green)">✓ Mapped '+esc(h)+' → '+esc(n)+'</span>'
+    : '<span style="color:var(--red)">'+esc(r.error)+'</span>';
+  document.getElementById('mapHandle').value = '';
+  document.getElementById('mapName').value = '';
+  loadHandleMap();
+}
+async function removeHandleMapping(h) {
+  await api('/api/telegram/handle-map', { method:'DELETE', body:{ handle:h }});
+  loadHandleMap();
+}
+
+async function runPredict() {
+  const symbol = document.getElementById('predSymbol').value;
+  if (!symbol) return toast('Enter a stock symbol', false);
+  document.getElementById('predResult').innerHTML = '<span class="spinner"></span> Generating prediction…';
+  const r = await api('/api/predict', { method: 'POST', body: {
+    symbol, lookback_hours: +document.getElementById('predHours').value,
+    max_posts: +document.getElementById('predPosts').value,
+  }});
+  if (!r.ok) { document.getElementById('predResult').innerHTML = `<div class="pred-result"><p style="color:var(--red)">${esc(r.error)}</p></div>`; return; }
+  document.getElementById('predResult').innerHTML = `<div class="pred-result"><h4>Prediction Result</h4><pre>${JSON.stringify(r.prediction, null, 2)}</pre></div>`;
+}
+
+async function runQuery() {
+  const q = document.getElementById('ragQ').value;
+  if (!q) return;
+  document.getElementById('ragAnswer').innerHTML = '<span class="spinner"></span> Thinking…';
+  const r = await api('/api/query', { method: 'POST', body: { question: q } });
+  if (!r.ok) { document.getElementById('ragAnswer').innerHTML = `<div class="pred-result"><p style="color:var(--red)">${esc(r.error)}</p></div>`; return; }
+  document.getElementById('ragAnswer').innerHTML = `<div class="pred-result"><h4>Answer</h4><pre>${esc(r.answer)}</pre></div>`;
+}
+
+/* ═══════ INIT ═══════ */
+refreshStats();
+loadSources();
+refreshPipelineStatus();
+onPlatformChange();  // show/hide telegram options on load
+
+/* ═══════ COST ESTIMATOR ═══════ */
+function updateCostEstimate() {
+  const posts = +document.getElementById('liveMax').value || 200;
+  const est = (posts * 0.00039).toFixed(2);
+  const el = document.getElementById('costEstText');
+  if (el) el.textContent = 'Est. cost for ' + posts.toLocaleString() + ' msgs: ~$' + est;
+}
+document.getElementById('liveMax').addEventListener('input', updateCostEstimate);
+updateCostEstimate();
+</script>
+
+</body>
+</html>
